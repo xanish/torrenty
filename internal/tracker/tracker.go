@@ -13,8 +13,9 @@ import (
 const timeout = 5 * time.Second
 
 type trackerResponse struct {
-	Interval int    `bencode:"interval"`
-	Peers    string `bencode:"peers"`
+	Interval      int    `bencode:"interval"`
+	Peers         string `bencode:"peers"`
+	FailureReason string `bencode:"failure reason,omitempty"`
 }
 
 func Peers(trackerURL string) ([]peer.Peer, error) {
@@ -30,6 +31,10 @@ func Peers(trackerURL string) ([]peer.Peer, error) {
 	err = bencode.Unmarshal(resp.Body, &tr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode tracker response: %w", err)
+	}
+
+	if tr.FailureReason != "" {
+		return nil, fmt.Errorf("failed to fetch peers from tracker due to: %s", tr.FailureReason)
 	}
 
 	return extractPeers([]byte(tr.Peers))
