@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/jackpal/bencode-go"
+	"github.com/xanish/torrenty/internal/tracker"
 )
 
 const sha1HashLen = 20
@@ -41,15 +42,20 @@ type baseInfo struct {
 }
 
 type Metadata struct {
-	Name        string   `json:"name"`
-	Size        int      `json:"size"`
-	Announce    string   `json:"announce"`
-	InfoHash    [20]byte `json:"infoHash"`
-	Pieces      []string `json:"pieces"`
-	PieceLength int      `json:"pieceLength"`
+	Name        string         `json:"name"`
+	Size        int            `json:"size"`
+	Announce    string         `json:"announce"`
+	InfoHash    [20]byte       `json:"infoHash"`
+	Pieces      []string       `json:"pieces"`
+	PieceLength int            `json:"pieceLength"`
+	Peers       []tracker.Peer `json:"peers"`
 }
 
-func (m Metadata) TrackerURL(peerID [20]byte, port uint16) (string, error) {
+func (m *Metadata) SetPeers(peers []tracker.Peer) {
+	m.Peers = peers
+}
+
+func (m *Metadata) TrackerURL(peerID [20]byte, port uint16) (string, error) {
 	baseUrl, err := url.Parse(m.Announce)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse announce url: %w", err)
@@ -70,7 +76,7 @@ func (m Metadata) TrackerURL(peerID [20]byte, port uint16) (string, error) {
 	return baseUrl.String(), nil
 }
 
-func (m Metadata) String() (string, error) {
+func (m *Metadata) String() (string, error) {
 	bytes, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to encode metadata to string: %w", err)
