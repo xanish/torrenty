@@ -16,6 +16,7 @@ import (
 )
 
 const sha1HashLen = 20
+const numExpectedPeers = 30
 
 type pieceInfo struct {
 	Pieces      string `bencode:"pieces"`
@@ -69,6 +70,7 @@ func (m *Metadata) TrackerURL(peerID [20]byte, port uint16) (string, error) {
 		"downloaded": []string{"0"},
 		"compact":    []string{"1"},
 		"left":       []string{strconv.Itoa(m.Size)},
+		"numwant":    []string{strconv.Itoa(numExpectedPeers)},
 	}
 
 	baseUrl.RawQuery = params.Encode()
