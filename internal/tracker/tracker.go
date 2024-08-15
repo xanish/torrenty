@@ -3,6 +3,7 @@ package tracker
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -25,7 +26,9 @@ func Peers(trackerURL string) ([]peer.Peer, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	tr := trackerResponse{}
 	err = bencode.Unmarshal(resp.Body, &tr)
