@@ -34,7 +34,17 @@ func Download(r io.Reader) error {
 
 	torrent.SetPeers(peers)
 
-	fmt.Println(torrent.Peers)
+	for _, peer := range torrent.Peers {
+		conn, err := peer.Connect(torrent.InfoHash, peerID)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		if conn != nil {
+			fmt.Println(conn.Bitfield)
+		}
+		fmt.Println()
+	}
 
 	return nil
 }

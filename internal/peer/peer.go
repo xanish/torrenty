@@ -10,8 +10,8 @@ type Peer struct {
 	Port uint16
 }
 
-func (p Peer) Connect(infoHash, peerID [20]byte) *Connection {
-	return New(p, infoHash, peerID)
+func (p Peer) Connect(infoHash, peerID [20]byte) (*Connection, error) {
+	return newConnection(p, infoHash, peerID)
 }
 
 func (p Peer) String() string {
