@@ -12,7 +12,7 @@ import (
 	"strconv"
 
 	"github.com/jackpal/bencode-go"
-	"github.com/xanish/torrenty/internal/tracker"
+	"github.com/xanish/torrenty/internal/peer"
 )
 
 const sha1HashLen = 20
@@ -42,16 +42,16 @@ type baseInfo struct {
 }
 
 type Metadata struct {
-	Name        string         `json:"name"`
-	Size        int            `json:"size"`
-	Announce    string         `json:"announce"`
-	InfoHash    [20]byte       `json:"infoHash"`
-	Pieces      []string       `json:"pieces"`
-	PieceLength int            `json:"pieceLength"`
-	Peers       []tracker.Peer `json:"peers"`
+	Name        string      `json:"name"`
+	Size        int         `json:"size"`
+	Announce    string      `json:"announce"`
+	InfoHash    [20]byte    `json:"infoHash"`
+	Pieces      []string    `json:"pieces"`
+	PieceLength int         `json:"pieceLength"`
+	Peers       []peer.Peer `json:"peers"`
 }
 
-func (m *Metadata) SetPeers(peers []tracker.Peer) {
+func (m *Metadata) SetPeers(peers []peer.Peer) {
 	m.Peers = peers
 }
 
@@ -110,6 +110,7 @@ func New(r io.Reader) (Metadata, error) {
 		InfoHash:    infoHash,
 		Pieces:      pieces,
 		PieceLength: bi.Info.PieceLength,
+		Peers:       make([]peer.Peer, 0),
 	}, nil
 }
 

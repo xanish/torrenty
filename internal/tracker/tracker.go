@@ -3,31 +3,21 @@ package tracker
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/jackpal/bencode-go"
+	"github.com/xanish/torrenty/internal/peer"
 )
 
 const timeout = 5 * time.Second
-
-type Peer struct {
-	IP   net.IP
-	Port uint16
-}
-
-func (p Peer) String() string {
-	return net.JoinHostPort(p.IP.String(), strconv.Itoa(int(p.Port)))
-}
 
 type trackerResponse struct {
 	Interval int    `bencode:"interval"`
 	Peers    string `bencode:"peers"`
 }
 
-func Peers(trackerURL string) ([]Peer, error) {
+func Peers(trackerURL string) ([]peer.Peer, error) {
 	c := &http.Client{Timeout: timeout}
 
 	resp, err := c.Get(trackerURL)
@@ -45,7 +35,7 @@ func Peers(trackerURL string) ([]Peer, error) {
 	return extractPeers([]byte(tr.Peers))
 }
 
-func extractPeers(bytes []byte) ([]Peer, error) {
+func extractPeers(bytes []byte) ([]peer.Peer, error) {
 	const peerBytes = 6 // 4 for IP, 2 for port
 	numPeers := len(bytes) / peerBytes
 
@@ -53,7 +43,7 @@ func extractPeers(bytes []byte) ([]Peer, error) {
 		return nil, fmt.Errorf("received malformed peers list")
 	}
 
-	peers := make([]Peer, numPeers)
+	peers := make([]peer.Peer, numPeers)
 	for i := 0; i < numPeers; i++ {
 		offset := i * peerBytes
 		peers[i].IP = bytes[offset : offset+4]
