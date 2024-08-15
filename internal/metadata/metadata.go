@@ -79,12 +79,12 @@ func (m *Metadata) TrackerURL(peerID [20]byte, port uint16) (string, error) {
 }
 
 func (m *Metadata) String() (string, error) {
-	bytes, err := json.Marshal(m)
+	buf, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("failed to encode metadata to string: %w", err)
 	}
 
-	return string(bytes), nil
+	return string(buf), nil
 }
 
 func New(r io.Reader) (Metadata, error) {
