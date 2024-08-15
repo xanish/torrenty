@@ -45,14 +45,23 @@ func New(infoHash, peerID [20]byte) Handshake {
 
 // Marshal converts the handshake metadata into a serialized byte form that can
 // be transmitted via the connection.
-func (h Handshake) Marshal() ([]byte, error) {
+func (h *Handshake) Marshal() ([]byte, error) {
 	errs := make([]error, 0, 5)
 	buf := bytes.NewBuffer(make([]byte, 0, bufLength+len(h.Pstr)))
-	errs[0] = buf.WriteByte(byte(len(h.Pstr)))
-	_, errs[1] = buf.WriteString(h.Pstr)
-	_, errs[2] = buf.Write(h.Reserved[:])
-	_, errs[3] = buf.Write(h.InfoHash[:])
-	_, errs[4] = buf.Write(h.PeerID[:])
+
+	errs = append(errs, buf.WriteByte(byte(len(h.Pstr))))
+
+	_, err := buf.WriteString(h.Pstr)
+	errs = append(errs, err)
+
+	_, err = buf.Write(h.Reserved[:])
+	errs = append(errs, err)
+
+	_, err = buf.Write(h.InfoHash[:])
+	errs = append(errs, err)
+
+	_, err = buf.Write(h.PeerID[:])
+	errs = append(errs, err)
 
 	for _, err := range errs {
 		if err != nil {
@@ -65,19 +74,28 @@ func (h Handshake) Marshal() ([]byte, error) {
 
 // Unmarshal converts the bytes metadata received from a remote peer into a
 // Handshake object.
-func Unmarshal(r io.Reader) (Handshake, error) {
-	buf, err := io.ReadAll(r)
+func Unmarshal(r io.Reader) (*Handshake, error) {
+	lengthBuf := make([]byte, 1)
+	_, err := io.ReadFull(r, lengthBuf)
 	if err != nil {
-		return Handshake{}, fmt.Errorf("failed to read handshake payload: %w", err)
+		return nil, fmt.Errorf("failed to read handshake payload length: %w", err)
 	}
 
-	pstrLen := int(buf[0])
-	payload := buf[1+pstrLen:]
+	pstrLen := int(lengthBuf[0])
+	if pstrLen == 0 {
+		return nil, fmt.Errorf("handshake payload length cannot be 0")
+	}
 
-	return Handshake{
-		Pstr:     string(buf[1:pstrLen]),
-		Reserved: [8]byte(payload[:8]),
-		InfoHash: [20]byte(payload[8:28]),
-		PeerID:   [20]byte(payload[28:]),
+	payloadBuf := make([]byte, 48+pstrLen)
+	_, err = io.ReadFull(r, payloadBuf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read handshake payload: %w", err)
+	}
+
+	return &Handshake{
+		Pstr:     string(payloadBuf[:pstrLen]),
+		Reserved: [8]byte(payloadBuf[pstrLen : pstrLen+8]),
+		InfoHash: [20]byte(payloadBuf[pstrLen+8 : pstrLen+28]),
+		PeerID:   [20]byte(payloadBuf[pstrLen+28:]),
 	}, nil
 }
