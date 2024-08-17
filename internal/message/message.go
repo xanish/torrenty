@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -112,4 +113,69 @@ func Unmarshal(r io.Reader) (*Message, error) {
 	}
 
 	return &m, nil
+}
+
+func NewChoke() *Message {
+	return &Message{ID: Choke}
+}
+
+func NewUnChoke() *Message {
+	return &Message{ID: UnChoke}
+}
+
+func NewInterested() *Message {
+	return &Message{ID: Interested}
+}
+
+func NewNotInterested() *Message {
+	return &Message{ID: NotInterested}
+}
+
+func NewHave(index int) *Message {
+	payload := make([]byte, 4)
+	binary.BigEndian.PutUint32(payload, uint32(index))
+
+	return &Message{ID: Have, Payload: payload}
+}
+
+func NewBitfield(bitfield []byte) *Message {
+	return &Message{ID: Bitfield, Payload: bitfield}
+}
+
+func NewRequest(index, begin, length int) *Message {
+	payload := make([]byte, 12)
+	binary.BigEndian.PutUint32(payload[0:4], uint32(index))
+	binary.BigEndian.PutUint32(payload[4:8], uint32(begin))
+	binary.BigEndian.PutUint32(payload[8:12], uint32(length))
+
+	return &Message{ID: Request, Payload: payload}
+}
+
+func NewPiece(index, begin int, block []byte) *Message {
+	payload := &bytes.Buffer{}
+
+	temp := make([]byte, 8+len(block))
+	binary.BigEndian.PutUint32(temp[0:4], uint32(index))
+	binary.BigEndian.PutUint32(temp[4:8], uint32(begin))
+
+	payload.Write(temp)
+	payload.Write(block)
+
+	return &Message{ID: Piece, Payload: payload.Bytes()}
+}
+
+func NewCancel(index, begin, length int) *Message {
+	payload := make([]byte, 12)
+	binary.BigEndian.PutUint32(payload[0:4], uint32(index))
+	binary.BigEndian.PutUint32(payload[4:8], uint32(begin))
+	binary.BigEndian.PutUint32(payload[8:12], uint32(length))
+
+	return &Message{ID: Cancel, Payload: payload}
+}
+
+func NewPort(port int) *Message {
+	payload := make([]byte, 2)
+	binary.BigEndian.PutUint16(payload, uint16(port))
+
+	return &Message{ID: Port, Payload: payload}
 }

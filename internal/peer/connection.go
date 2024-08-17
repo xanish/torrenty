@@ -105,3 +105,93 @@ func readBitfield(conn net.Conn) ([]byte, error) {
 
 	return msg.Payload, nil
 }
+
+func (c *Connection) SendChoke() error {
+	_, err := c.Conn.Write(message.NewChoke().Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send choke: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Connection) SendUnChoke() error {
+	_, err := c.Conn.Write(message.NewUnChoke().Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send unchoke: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Connection) SendInterested() error {
+	_, err := c.Conn.Write(message.NewInterested().Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send interested: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Connection) SendNotInterested() error {
+	_, err := c.Conn.Write(message.NewNotInterested().Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send not interested: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Connection) SendHave(index int) error {
+	_, err := c.Conn.Write(message.NewHave(index).Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send have for index %d: %w", index, err)
+	}
+
+	return nil
+}
+
+func (c *Connection) SendBitField(bitfield []byte) error {
+	_, err := c.Conn.Write(message.NewBitfield(bitfield).Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send bitfield: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Connection) SendRequest(index, begin, length int) error {
+	_, err := c.Conn.Write(message.NewRequest(index, begin, length).Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send request for index %d, begin %d, length %d: %w", index, begin, length, err)
+	}
+
+	return nil
+}
+
+func (c *Connection) SendPiece(index, begin int, block []byte) error {
+	_, err := c.Conn.Write(message.NewPiece(index, begin, block).Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send piece for index %d, begin %d: %w", index, begin, err)
+	}
+
+	return nil
+}
+
+func (c *Connection) SendCancel(index, begin, length int) error {
+	_, err := c.Conn.Write(message.NewCancel(index, begin, length).Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send cancel for index %d, begin %d, length %d: %w", index, begin, length, err)
+	}
+
+	return nil
+}
+
+func (c *Connection) SendPort(port int) error {
+	_, err := c.Conn.Write(message.NewPort(port).Marshal())
+	if err != nil {
+		return fmt.Errorf("failed to send port for index %d: %w", port, err)
+	}
+
+	return nil
+}
