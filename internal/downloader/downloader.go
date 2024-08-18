@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
 
 	"github.com/xanish/torrenty/internal/message"
 	"github.com/xanish/torrenty/internal/metadata"
@@ -94,9 +95,9 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 	return nil
 }
 
-func Download(peerID [20]byte, torrent metadata.Metadata) {
+func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 	todo := make(chan *work, len(torrent.Pieces))
-	done := make(chan *work)
+	done := make(chan *work, 10)
 	for index, hash := range torrent.Pieces {
 		pieceSize := torrent.PieceLength
 		numPieces := int(math.Ceil(float64(torrent.Size) / float64(pieceSize)))
@@ -119,13 +120,21 @@ func Download(peerID [20]byte, torrent metadata.Metadata) {
 	donePieces := 0
 	for donePieces < len(torrent.Pieces) {
 		res := <-done
+		offset := int64(res.id * torrent.PieceLength)
+		_, err := w.WriteAt(res.result, offset)
+		if err != nil {
+			return fmt.Errorf("failed writing response for piece %d at offset  %d: %w", res.id, offset, err)
+		}
 		donePieces++
 
 		percent := float64(donePieces) / float64(len(torrent.Pieces)) * 100
 		log.Printf("downloaded piece %d", res.id)
 		log.Printf("progress: (%0.2f%%)", percent)
 	}
+
 	close(todo)
+
+	return nil
 }
 
 func readMessage(peer *peer.Connection, index int, buf []byte) error {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 
 	"github.com/xanish/torrenty/internal/downloader"
 	"github.com/xanish/torrenty/internal/metadata"
@@ -13,7 +14,7 @@ import (
 
 const DEFAULT_PORT = 6881
 
-func Download(r io.Reader) error {
+func Download(r io.Reader, path string) error {
 	peerID, err := utility.PeerID()
 	if err != nil {
 		return err
@@ -45,8 +46,21 @@ func Download(r io.Reader) error {
 
 	torrent.SetPeers(peers)
 
+	file := path + torrent.Name
+	out, err := os.Create(file)
+	if err != nil {
+		return fmt.Errorf("could not create output file %s: %w", file, err)
+	}
+	err = out.Truncate(int64(torrent.Size))
+	if err != nil {
+		return fmt.Errorf("could not allocate %d bytes for file %s: %w", torrent.Size, file, err)
+	}
+
 	log.Print("initiating download")
-	downloader.Download(peerID, torrent)
+	err = downloader.Download(peerID, torrent, out)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

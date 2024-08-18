@@ -1,24 +1,24 @@
 package main
 
 import (
+	"github.com/xanish/torrenty"
 	"os"
 	"path/filepath"
-
-	"github.com/xanish/torrenty"
 )
 
 func main() {
-	path, err := filepath.Abs("debian.torrent")
+	downloadPath, err := filepath.Abs(".")
+	torrentPath, err := filepath.Abs("debian.torrent")
 	if err != nil {
 		panic(err)
 	}
 
-	f, err := os.Open(path)
+	file, err := os.Open(torrentPath)
 	if err != nil {
 		panic(err)
 	}
 
-	err = torrenty.Download(f)
+	err = torrenty.Download(file, downloadPath)
 	if err != nil {
 		panic(err)
 	}
