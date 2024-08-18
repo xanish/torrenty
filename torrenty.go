@@ -33,18 +33,19 @@ func Download(r io.Reader, path string) error {
 	}
 	logger.Log(logger.Info, "generated tracker request url %s", trackerURL)
 
-	peers, err := tracker.Peers(trackerURL)
+	tr, err := tracker.Sync(trackerURL)
 	if err != nil {
 		panic(err)
 	}
 
-	if len(peers) == 0 {
+	if len(tr.Peers) == 0 {
 		return fmt.Errorf("no peers found")
 	}
 
-	logger.Log(logger.Info, "successfully fetched %d peers from tracker", len(peers))
+	logger.Log(logger.Info, "successfully fetched %d peers from tracker", len(tr.Peers))
 
-	torrent.SetPeers(peers)
+	torrent.SetPeers(tr.Peers)
+	torrent.SetRefreshInterval(tr.RefreshInterval)
 
 	file := path + torrent.Name
 	out, err := os.Create(file)

@@ -13,13 +13,18 @@ import (
 
 const timeout = 5 * time.Second
 
-type trackerResponse struct {
+type rawResponse struct {
 	Interval      int    `bencode:"interval"`
 	Peers         string `bencode:"peers"`
 	FailureReason string `bencode:"failure reason,omitempty"`
 }
 
-func Peers(trackerURL string) ([]peer.Peer, error) {
+type Response struct {
+	Peers           []peer.Peer
+	RefreshInterval int
+}
+
+func Sync(trackerURL string) (*Response, error) {
 	c := &http.Client{Timeout: timeout}
 
 	resp, err := c.Get(trackerURL)
@@ -30,17 +35,25 @@ func Peers(trackerURL string) ([]peer.Peer, error) {
 		_ = Body.Close()
 	}(resp.Body)
 
-	tr := trackerResponse{}
-	err = bencode.Unmarshal(resp.Body, &tr)
+	rr := rawResponse{}
+	err = bencode.Unmarshal(resp.Body, &rr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode tracker response: %w", err)
 	}
 
-	if tr.FailureReason != "" {
-		return nil, fmt.Errorf("failed to fetch peers from tracker due to: %s", tr.FailureReason)
+	if rr.FailureReason != "" {
+		return nil, fmt.Errorf("failed to fetch peers from tracker due to: %s", rr.FailureReason)
 	}
 
-	return extractPeers([]byte(tr.Peers))
+	peers, err := extractPeers([]byte(rr.Peers))
+	if err != nil {
+		return nil, err
+	}
+
+	return &Response{
+		Peers:           peers,
+		RefreshInterval: rr.Interval,
+	}, nil
 }
 
 func extractPeers(bytes []byte) ([]peer.Peer, error) {

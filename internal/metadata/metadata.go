@@ -42,17 +42,22 @@ type baseInfo struct {
 }
 
 type Metadata struct {
-	Name        string      `json:"name"`
-	Size        int         `json:"size"`
-	Announce    string      `json:"announce"`
-	InfoHash    [20]byte    `json:"infoHash"`
-	Pieces      [][20]byte  `json:"pieces"`
-	PieceLength int         `json:"pieceLength"`
-	Peers       []peer.Peer `json:"peers"`
+	Name            string      `json:"name"`
+	Size            int         `json:"size"`
+	Announce        string      `json:"announce"`
+	InfoHash        [20]byte    `json:"infoHash"`
+	Pieces          [][20]byte  `json:"pieces"`
+	PieceLength     int         `json:"pieceLength"`
+	Peers           []peer.Peer `json:"peers"`
+	RefreshInterval int         `json:"refreshInterval"`
 }
 
 func (m *Metadata) SetPeers(peers []peer.Peer) {
 	m.Peers = peers
+}
+
+func (m *Metadata) SetRefreshInterval(duration int) {
+	m.RefreshInterval = duration
 }
 
 func (m *Metadata) TrackerURL(peerID [20]byte, port uint16) (string, error) {
