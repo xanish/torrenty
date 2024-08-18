@@ -18,7 +18,7 @@ func main() {
 		panic(err)
 	}
 
-	err = torrenty.Download(file, downloadPath)
+	err = torrenty.Download(file, downloadPath+"/")
 	if err != nil {
 		panic(err)
 	}

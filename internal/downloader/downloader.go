@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"fmt"
-	"log"
 	"math"
 	"os"
 
+	"github.com/xanish/torrenty/internal/logger"
 	"github.com/xanish/torrenty/internal/message"
 	"github.com/xanish/torrenty/internal/metadata"
 	"github.com/xanish/torrenty/internal/peer"
@@ -29,7 +29,7 @@ func retry(w *work, jobs chan<- *work) {
 }
 
 func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer.Peer, jobs chan *work, results chan<- *work) error {
-	log.Printf("[worker:%d] connecting to peer %s", id, peer.String())
+	logger.Log(logger.Debug, "[worker:%d] connecting to peer %s", id, peer.String())
 	conn, err := peer.Connect(torrent.InfoHash, peerID)
 	if err != nil {
 		return fmt.Errorf("[worker:%d] connecting to peer %s failed: %w", id, peer.String(), err)
@@ -64,7 +64,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 			err = conn.SendRequest(job.id, i*maxDownloadBlockSize, adjustedBlockSize)
 			if err != nil {
 				retry(job, jobs)
-				log.Printf("[worker:%d] sending message<request> to peer %s failed: %w", id, peer.String(), err)
+				logger.Log(logger.Error, "[worker:%d] sending message<request> to peer %s failed: %w", id, peer.String(), err)
 				// just break here so that worker can continue fetching more jobs instead of exiting
 				break
 			}
@@ -72,7 +72,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 			err = readMessage(conn, job.id, job.result)
 			if err != nil {
 				retry(job, jobs)
-				log.Printf("[worker:%d] reading response for message<request> from peer %s failed: %w", id, peer.String(), err)
+				logger.Log(logger.Error, "[worker:%d] reading response for message<request> from peer %s failed: %w", id, peer.String(), err)
 				// just break here so that worker can continue fetching more jobs instead of exiting
 				break
 			}
@@ -82,10 +82,10 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 		hash := sha1.Sum(job.result)
 		if !bytes.Equal(hash[:], job.hash[:]) {
 			retry(job, jobs)
-			log.Printf("[worker:%d] integrity check for piece %d downloaded from %s failed", id, job.id, peer.String())
+			logger.Log(logger.Info, "[worker:%d] integrity check for piece %d downloaded from %s failed", id, job.id, peer.String())
 			continue
 		} else {
-			log.Printf("[worker:%d] piece %d verified successfully", id, job.id)
+			logger.Log(logger.Info, "[worker:%d] piece %d verified successfully", id, job.id)
 			results <- job
 		}
 
@@ -112,11 +112,11 @@ func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 	}
 
 	for id, remotePeer := range torrent.Peers {
-		log.Printf("starting worker %d with peer %s", id, remotePeer.String())
+		logger.Log(logger.Info, "starting worker %d with peer %s", id, remotePeer.String())
 		go func() {
 			err := executeWorker(id, torrent, peerID, remotePeer, todo, done)
 			if err != nil {
-				log.Printf("[worker:%d] failed with error: %s", id, err)
+				logger.Log(logger.Error, "[worker:%d] failed with error: %s", id, err)
 			}
 		}()
 	}
@@ -132,8 +132,8 @@ func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 		donePieces++
 
 		percent := float64(donePieces) / float64(len(torrent.Pieces)) * 100
-		log.Printf("downloaded piece %d", res.id)
-		log.Printf("progress: (%0.2f%%)", percent)
+		logger.Log(logger.Info, "downloaded piece %d", res.id)
+		logger.Log(logger.Info, "progress: (%0.2f%%)", percent)
 	}
 
 	close(todo)
