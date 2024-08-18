@@ -10,6 +10,7 @@ const (
 	Info
 	Warning
 	Error
+	Fatal
 )
 
 func Log(level int, format string, params ...interface{}) {
@@ -22,5 +23,7 @@ func Log(level int, format string, params ...interface{}) {
 		log.Println(fmt.Sprintf("[WARN] "+format, params...))
 	case Error:
 		log.Println(fmt.Sprintf("[ERROR] "+format, params...))
+	case Fatal:
+		log.Fatalln(fmt.Sprintf("[FATAL] "+format, params...))
 	}
 }

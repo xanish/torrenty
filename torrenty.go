@@ -3,6 +3,7 @@ package torrenty
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"github.com/xanish/torrenty/internal/downloader"
@@ -15,6 +16,14 @@ import (
 const defaultPort = 6881
 
 func Download(r io.Reader, path string) error {
+	f, err := os.OpenFile(path+"process.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		logger.Log(logger.Fatal, "failed to open log file: %s", err)
+	}
+	defer f.Close()
+
+	log.SetOutput(f)
+
 	peerID, err := utility.PeerID()
 	if err != nil {
 		return err

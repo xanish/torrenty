@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"fmt"
+	"github.com/schollz/progressbar/v3"
 	"math"
 	"os"
 
@@ -122,6 +123,10 @@ func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 	}
 
 	donePieces := 0
+	bar := progressbar.DefaultBytes(
+		int64(torrent.Size),
+		"Downloading "+torrent.Name,
+	)
 	for donePieces < len(torrent.Pieces) {
 		res := <-done
 		offset := int64(res.id * torrent.PieceLength)
@@ -129,6 +134,8 @@ func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 		if err != nil {
 			return fmt.Errorf("failed writing response for piece %d at offset  %d: %w", res.id, offset, err)
 		}
+
+		_ = bar.Add(torrent.PieceLength)
 		donePieces++
 
 		percent := float64(donePieces) / float64(len(torrent.Pieces)) * 100
