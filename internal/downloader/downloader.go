@@ -101,7 +101,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 
 func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 	todo := make(chan *work, len(torrent.Pieces))
-	done := make(chan *work, 10)
+	done := make(chan *work, len(torrent.Peers))
 	for index, hash := range torrent.Pieces {
 		pieceSize := torrent.PieceLength
 		numPieces := int(math.Ceil(float64(torrent.Size) / float64(pieceSize)))
