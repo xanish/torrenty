@@ -47,7 +47,7 @@ type Metadata struct {
 	Size        int         `json:"size"`
 	Announce    string      `json:"announce"`
 	InfoHash    [20]byte    `json:"infoHash"`
-	Pieces      []string    `json:"pieces"`
+	Pieces      [][20]byte  `json:"pieces"`
 	PieceLength int         `json:"pieceLength"`
 	Peers       []peer.Peer `json:"peers"`
 }
@@ -116,7 +116,7 @@ func New(r io.Reader) (Metadata, error) {
 	}, nil
 }
 
-func split(pieces string) ([]string, error) {
+func split(pieces string) ([][20]byte, error) {
 	buf := []byte(pieces)
 
 	if len(buf)%sha1HashLen != 0 {
@@ -124,10 +124,10 @@ func split(pieces string) ([]string, error) {
 	}
 
 	numHashes := len(buf) / sha1HashLen
-	hashes := make([]string, numHashes)
+	hashes := make([][20]byte, numHashes)
 
 	for i := 0; i < numHashes; i++ {
-		hashes[i] = string(buf[i*sha1HashLen : (i+1)*sha1HashLen])
+		copy(hashes[i][:], buf[i*sha1HashLen:(i+1)*sha1HashLen])
 	}
 
 	return hashes, nil

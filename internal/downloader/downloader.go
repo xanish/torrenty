@@ -1,8 +1,11 @@
 package downloader
 
 import (
+	"bytes"
+	"crypto/sha1"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/xanish/torrenty/internal/message"
 	"github.com/xanish/torrenty/internal/metadata"
@@ -20,33 +23,67 @@ func Download(peerID [20]byte, torrent metadata.Metadata) {
 
 		if conn != nil {
 			fmt.Println(conn.Bitfield)
-			for idx, _ := range torrent.Pieces {
+
+			conn.SendInterested()
+			readMessage(conn, 0, nil)
+
+			for idx, piece := range torrent.Pieces {
 				// if bitfield has the piece
 				exists := utility.PieceExists(idx, conn.Bitfield)
 				if !exists {
 					break
 				}
 
-				// download piece
-				err = conn.SendRequest(idx, 0, 16384)
-				if err != nil {
-					fmt.Println(err)
+				pieceSize := torrent.PieceLength
+				numPieces := int(math.Ceil(float64(torrent.Size) / float64(pieceSize)))
+				if idx == numPieces-1 {
+					pieceSize = torrent.Size % torrent.PieceLength
 				}
 
-				err = readMessage(conn)
-				if err != nil {
-					fmt.Println(err)
+				blockSize := 16 * 1024
+				numBlocks := int(math.Ceil(float64(pieceSize) / float64(blockSize)))
+
+				downloadedPiece := make([]byte, pieceSize)
+
+				for i := 0; i < numBlocks; i++ {
+					adjustedBlockSize := blockSize
+					if i == numBlocks-1 {
+						adjustedBlockSize = pieceSize - ((numBlocks - 1) * blockSize)
+					}
+
+					log.Printf("downloading piece %d with begin offset %d and block size %d", idx, i*blockSize, adjustedBlockSize)
+					err = conn.SendRequest(idx, i*blockSize, adjustedBlockSize)
+					if err != nil {
+						fmt.Println(err)
+					}
+
+					err = readMessage(conn, idx, downloadedPiece)
+					if err != nil {
+						fmt.Println(err)
+					}
 				}
 
 				// check piece integrity
+				hash := sha1.Sum(downloadedPiece)
+				if !bytes.Equal(hash[:], piece[:]) {
+					fmt.Printf("failed integrity check for piece %d\n", idx)
+				} else {
+					fmt.Printf("successfully integrity check for piece %d\n", idx)
+				}
+
 				// inform peer you got the piece
+				err = conn.SendHave(idx)
+				if err != nil {
+					fmt.Println(err)
+				}
+				break
 			}
 		}
 		fmt.Println()
 	}
 }
 
-func readMessage(peer *peer.Connection) error {
+func readMessage(peer *peer.Connection, index int, buf []byte) error {
 	msg, err := message.Unmarshal(peer.Conn)
 	if err != nil {
 		return err
@@ -81,6 +118,10 @@ func readMessage(peer *peer.Connection) error {
 			return err
 		}
 	case message.Piece:
+		_, err := message.ParsePiece(index, buf, msg)
+		if err != nil {
+			return err
+		}
 	case message.Cancel:
 	case message.Port:
 	}
