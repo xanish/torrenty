@@ -13,74 +13,119 @@ import (
 	"github.com/xanish/torrenty/internal/utility"
 )
 
-func Download(peerID [20]byte, torrent metadata.Metadata) {
-	for _, peer := range torrent.Peers {
-		log.Printf("connecting to peer %s", peer.String())
-		conn, err := peer.Connect(torrent.InfoHash, peerID)
-		if err != nil {
-			fmt.Println(err)
+const maxDownloadBlockSize = 16 * 1024
+
+type work struct {
+	id     int
+	hash   [20]byte
+	size   int
+	result []byte
+}
+
+func retry(w *work, jobs chan<- *work) {
+	w.result = make([]byte, w.size)
+	jobs <- w
+}
+
+func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer.Peer, jobs chan *work, results chan<- *work) error {
+	log.Printf("[worker:%d] connecting to peer %s", id, peer.String())
+	conn, err := peer.Connect(torrent.InfoHash, peerID)
+	if err != nil {
+		return fmt.Errorf("[worker:%d] connecting to peer %s failed: %w", id, peer.String(), err)
+	}
+
+	err = conn.SendInterested()
+	if err != nil {
+		return fmt.Errorf("[worker:%d] sending interested message to peer %s failed: %w", id, peer.String(), err)
+	}
+
+	err = readMessage(conn, 0, nil)
+	if err != nil {
+		return fmt.Errorf("[worker:%d] reading response for message<interested> from peer %s failed: %w", id, peer.String(), err)
+	}
+
+	for job := range jobs {
+		// continue to next piece of work if this peer does not have the piece
+		exists := utility.PieceExists(job.id, conn.Bitfield)
+		if !exists {
+			retry(job, jobs)
+			continue
 		}
 
-		if conn != nil {
-			fmt.Println(conn.Bitfield)
+		// download piece block-by-block
+		numBlocks := int(math.Ceil(float64(job.size) / float64(maxDownloadBlockSize)))
+		for i := 0; i < numBlocks; i++ {
+			adjustedBlockSize := maxDownloadBlockSize
+			if i == numBlocks-1 {
+				adjustedBlockSize = job.size - ((numBlocks - 1) * maxDownloadBlockSize)
+			}
 
-			conn.SendInterested()
-			readMessage(conn, 0, nil)
+			err = conn.SendRequest(job.id, i*maxDownloadBlockSize, adjustedBlockSize)
+			if err != nil {
+				retry(job, jobs)
+				return fmt.Errorf("[worker:%d] sending message<request> to peer %s failed: %w", id, peer.String(), err)
+			}
 
-			for idx, piece := range torrent.Pieces {
-				// if bitfield has the piece
-				exists := utility.PieceExists(idx, conn.Bitfield)
-				if !exists {
-					break
-				}
-
-				pieceSize := torrent.PieceLength
-				numPieces := int(math.Ceil(float64(torrent.Size) / float64(pieceSize)))
-				if idx == numPieces-1 {
-					pieceSize = torrent.Size % torrent.PieceLength
-				}
-
-				blockSize := 16 * 1024
-				numBlocks := int(math.Ceil(float64(pieceSize) / float64(blockSize)))
-
-				downloadedPiece := make([]byte, pieceSize)
-
-				for i := 0; i < numBlocks; i++ {
-					adjustedBlockSize := blockSize
-					if i == numBlocks-1 {
-						adjustedBlockSize = pieceSize - ((numBlocks - 1) * blockSize)
-					}
-
-					log.Printf("downloading piece %d with begin offset %d and block size %d", idx, i*blockSize, adjustedBlockSize)
-					err = conn.SendRequest(idx, i*blockSize, adjustedBlockSize)
-					if err != nil {
-						fmt.Println(err)
-					}
-
-					err = readMessage(conn, idx, downloadedPiece)
-					if err != nil {
-						fmt.Println(err)
-					}
-				}
-
-				// check piece integrity
-				hash := sha1.Sum(downloadedPiece)
-				if !bytes.Equal(hash[:], piece[:]) {
-					fmt.Printf("failed integrity check for piece %d\n", idx)
-				} else {
-					fmt.Printf("successfully integrity check for piece %d\n", idx)
-				}
-
-				// inform peer you got the piece
-				err = conn.SendHave(idx)
-				if err != nil {
-					fmt.Println(err)
-				}
-				break
+			err = readMessage(conn, job.id, job.result)
+			if err != nil {
+				retry(job, jobs)
+				return fmt.Errorf("[worker:%d] reading response for message<request> from peer %s failed: %w", id, peer.String(), err)
 			}
 		}
-		fmt.Println()
+
+		// check piece integrity
+		hash := sha1.Sum(job.result)
+		if !bytes.Equal(hash[:], job.hash[:]) {
+			retry(job, jobs)
+			log.Printf("[worker:%d] integrity check for piece %d downloaded from %s failed", id, job.id, peer.String())
+			continue
+		} else {
+			log.Printf("[worker:%d] piece %d verified successfully", id, job.id)
+			results <- job
+		}
+
+		// inform peer you got the piece
+		err = conn.SendHave(job.id)
+		if err != nil {
+			return fmt.Errorf("[worker:%d] sending message<have> to peer %s failed: %w", id, peer.String(), err)
+		}
 	}
+
+	return nil
+}
+
+func Download(peerID [20]byte, torrent metadata.Metadata) {
+	todo := make(chan *work, len(torrent.Pieces))
+	done := make(chan *work)
+	for index, hash := range torrent.Pieces {
+		pieceSize := torrent.PieceLength
+		numPieces := int(math.Ceil(float64(torrent.Size) / float64(pieceSize)))
+		if index == numPieces-1 {
+			pieceSize = torrent.Size % torrent.PieceLength
+		}
+		todo <- &work{index, hash, pieceSize, make([]byte, pieceSize)}
+	}
+
+	for id, remotePeer := range torrent.Peers {
+		log.Printf("starting worker %d with peer %s", id, remotePeer.String())
+		go func() {
+			err := executeWorker(id, torrent, peerID, remotePeer, todo, done)
+			if err != nil {
+				log.Printf("[worker:%d] failed with error: %s", id, err)
+			}
+		}()
+	}
+
+	donePieces := 0
+	for donePieces < len(torrent.Pieces) {
+		res := <-done
+		donePieces++
+
+		percent := float64(donePieces) / float64(len(torrent.Pieces)) * 100
+		log.Printf("downloaded piece %d", res.id)
+		log.Printf("progress: (%0.2f%%)", percent)
+	}
+	close(todo)
 }
 
 func readMessage(peer *peer.Connection, index int, buf []byte) error {
@@ -88,8 +133,6 @@ func readMessage(peer *peer.Connection, index int, buf []byte) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println(msg)
 
 	// keep-alive
 	if msg == nil {
