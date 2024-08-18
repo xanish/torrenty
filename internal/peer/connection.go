@@ -11,8 +11,11 @@ import (
 )
 
 type Connection struct {
-	Conn     net.Conn
-	Bitfield []byte
+	Conn         net.Conn
+	Peer         Peer
+	Bitfield     []byte
+	AmChoked     bool
+	AmInterested bool
 }
 
 // newConnection tries to set up a connection to the remote peer via handshake.
@@ -42,7 +45,10 @@ func newConnection(peer Peer, infoHash, peerID [20]byte) (*Connection, error) {
 
 	return &Connection{
 		conn,
+		peer,
 		bitfield,
+		true,
+		false,
 	}, nil
 }
 
