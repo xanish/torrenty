@@ -62,7 +62,7 @@ func (m *Message) String() string {
 		return m.name()
 	}
 
-	return fmt.Sprintf("%s: <len=%d><id=%d>", m.name(), len(m.Payload), m.ID)
+	return fmt.Sprintf("message<%s>: <len=%d><id=%d>", m.name(), len(m.Payload), m.ID)
 }
 
 func (m *Message) Marshal() []byte {
@@ -113,6 +113,81 @@ func Unmarshal(r io.Reader) (*Message, error) {
 	}
 
 	return &m, nil
+}
+
+func ParseHave(msg *Message) (int, error) {
+	if msg.ID != Have {
+		return 0, fmt.Errorf("expected message<have> but got %s", msg)
+	}
+
+	if len(msg.Payload) != 4 {
+		return 0, fmt.Errorf("expected payload length to be 4, got %d", len(msg.Payload))
+	}
+
+	index := int(binary.BigEndian.Uint32(msg.Payload))
+
+	return index, nil
+}
+
+func ParseRequest(msg *Message) (int, int, int, error) {
+	if msg.ID != Request {
+		return 0, 0, 0, fmt.Errorf("expected message<request> but got %s", msg)
+	}
+
+	if len(msg.Payload) < 12 {
+		return 0, 0, 0, fmt.Errorf("expected payload to have exactly 12 bytes, got %d", len(msg.Payload))
+	}
+
+	parsedIndex := int(binary.BigEndian.Uint32(msg.Payload[0:4]))
+	parsedBegin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
+	parsedLength := int(binary.BigEndian.Uint32(msg.Payload[8:]))
+
+	return parsedIndex, parsedBegin, parsedLength, nil
+}
+
+func ParsePiece(index int, out []byte, msg *Message) (int, error) {
+	if msg.ID != Piece {
+		return 0, fmt.Errorf("expected message<piece> but got %s", msg)
+	}
+
+	if len(msg.Payload) < 8 {
+		return 0, fmt.Errorf("expected payload to have at-least 8 bytes, got %d", len(msg.Payload))
+	}
+
+	parsedIndex := int(binary.BigEndian.Uint32(msg.Payload[0:4]))
+	if parsedIndex != index {
+		return 0, fmt.Errorf("expected piece index %d, got %d", index, parsedIndex)
+	}
+
+	begin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
+	if begin >= len(out) {
+		return 0, fmt.Errorf("expected begin offset %d, got %d", begin, len(out))
+	}
+
+	data := msg.Payload[8:]
+	if begin+len(data) > len(out) {
+		return 0, fmt.Errorf("expected data size to be %d bytes, got %d bytes", len(out), len(data))
+	}
+
+	copy(out[begin:], data)
+
+	return len(data), nil
+}
+
+func ParseCancel(msg *Message) (int, int, int, error) {
+	if msg.ID != Cancel {
+		return 0, 0, 0, fmt.Errorf("expected message<cancel> but got %s", msg)
+	}
+
+	if len(msg.Payload) < 12 {
+		return 0, 0, 0, fmt.Errorf("expected payload to have exactly 12 bytes, got %d", len(msg.Payload))
+	}
+
+	parsedIndex := int(binary.BigEndian.Uint32(msg.Payload[0:4]))
+	parsedBegin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
+	parsedLength := int(binary.BigEndian.Uint32(msg.Payload[8:]))
+
+	return parsedIndex, parsedBegin, parsedLength, nil
 }
 
 func NewChoke() *Message {

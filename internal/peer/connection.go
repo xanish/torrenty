@@ -102,11 +102,11 @@ func readBitfield(conn net.Conn) ([]byte, error) {
 	}
 
 	if msg == nil {
-		return nil, fmt.Errorf("expected bitfield message but got %s", msg)
+		return nil, fmt.Errorf("expected message<bitfield> but got %s", msg)
 	}
 
 	if msg.ID != message.Bitfield {
-		return nil, fmt.Errorf("expected bitfield message but got %s", msg.ID)
+		return nil, fmt.Errorf("expected message<bitfield> but got %s", msg.ID)
 	}
 
 	return msg.Payload, nil
