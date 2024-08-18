@@ -15,3 +15,25 @@ func PeerID() ([20]byte, error) {
 
 	return id, nil
 }
+
+func PieceExists(index int, bitfield []byte) bool {
+	byteIndex := index / 8
+	offset := index % 8
+
+	if byteIndex < 0 || byteIndex >= len(bitfield) {
+		return false
+	}
+
+	return bitfield[byteIndex]>>uint(7-offset)&1 != 0
+}
+
+func SetPiece(index int, bitfield []byte) {
+	byteIndex := index / 8
+	offset := index % 8
+
+	if byteIndex < 0 || byteIndex >= len(bitfield) {
+		return
+	}
+
+	bitfield[byteIndex] |= 1 << uint(7-offset)
+}
