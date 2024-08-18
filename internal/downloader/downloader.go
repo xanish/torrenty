@@ -64,7 +64,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 			err = conn.SendRequest(job.id, i*maxDownloadBlockSize, adjustedBlockSize)
 			if err != nil {
 				retry(job, jobs)
-				logger.Log(logger.Error, "[worker:%d] sending message<request> to peer %s failed: %w", id, peer.String(), err)
+				logger.Log(logger.Error, "[worker:%d] sending message<request> to peer %s failed: %s", id, peer.String(), err)
 				// just break here so that worker can continue fetching more jobs instead of exiting
 				break
 			}
@@ -72,7 +72,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 			err = readMessage(conn, job.id, job.result)
 			if err != nil {
 				retry(job, jobs)
-				logger.Log(logger.Error, "[worker:%d] reading response for message<request> from peer %s failed: %w", id, peer.String(), err)
+				logger.Log(logger.Error, "[worker:%d] reading response for message<request> from peer %s failed: %s", id, peer.String(), err)
 				// just break here so that worker can continue fetching more jobs instead of exiting
 				break
 			}
