@@ -1,6 +1,7 @@
 package torrenty
 
 import (
+	"fmt"
 	"io"
 	"log"
 
@@ -35,6 +36,11 @@ func Download(r io.Reader) error {
 	if err != nil {
 		panic(err)
 	}
+
+	if len(peers) == 0 {
+		return fmt.Errorf("no peers found")
+	}
+
 	log.Printf("successfully fetched %d peers from tracker", len(peers))
 
 	torrent.SetPeers(peers)
