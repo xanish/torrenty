@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/schollz/progressbar/v3"
 	"math"
+	"net"
 	"os"
 
 	"github.com/xanish/torrenty/internal/logger"
@@ -35,6 +36,9 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 	if err != nil {
 		return fmt.Errorf("[worker:%d] connecting to peer %s failed: %w", id, peer.String(), err)
 	}
+	defer func(Conn net.Conn) {
+		_ = Conn.Close()
+	}(conn.Conn)
 
 	err = conn.SendInterested()
 	if err != nil {
