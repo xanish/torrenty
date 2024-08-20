@@ -148,6 +148,8 @@ func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 	}
 
 	close(todo)
+	close(done)
+	_ = bar.Close()
 
 	return nil
 }
