@@ -61,6 +61,10 @@ func Download(r io.Reader, path string) error {
 	if err != nil {
 		return fmt.Errorf("could not create output file %s: %w", file, err)
 	}
+	defer func(out *os.File) {
+		_ = out.Close()
+	}(out)
+
 	err = out.Truncate(int64(torrent.Size))
 	if err != nil {
 		return fmt.Errorf("could not allocate %d bytes for file %s: %w", torrent.Size, file, err)
