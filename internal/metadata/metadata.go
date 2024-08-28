@@ -5,17 +5,23 @@ package metadata
 import (
 	"bytes"
 	"crypto/sha1"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/jackpal/bencode-go"
 	"github.com/xanish/torrenty/internal/peer"
 )
 
-const sha1HashLen = 20
+const (
+	sha1HashLen = 20
+	timeout     = 5 * time.Second
+)
 
 type pieceInfo struct {
 	Pieces      string `bencode:"pieces"`
@@ -60,7 +66,7 @@ func (m *Metadata) SetRefreshInterval(duration int) {
 	m.RefreshInterval = duration
 }
 
-func (m *Metadata) TrackerURL(peerID [20]byte, port uint16) (string, error) {
+func (m *Metadata) trackerURL(peerID [20]byte, port uint16) (string, error) {
 	baseUrl, err := url.Parse(m.Announce)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse announce url: %w", err)
@@ -79,6 +85,54 @@ func (m *Metadata) TrackerURL(peerID [20]byte, port uint16) (string, error) {
 	baseUrl.RawQuery = params.Encode()
 
 	return baseUrl.String(), nil
+}
+
+type rawResponse struct {
+	Interval      int    `bencode:"interval"`
+	Peers         string `bencode:"peers"`
+	FailureReason string `bencode:"failure reason,omitempty"`
+}
+
+type Response struct {
+	Peers           []peer.Peer
+	RefreshInterval int
+}
+
+func (m *Metadata) SyncWithTracker(peerID [20]byte, port uint16) (*Response, error) {
+	c := &http.Client{Timeout: timeout}
+
+	trackerURL, err := m.trackerURL(peerID, port)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Get(trackerURL)
+	if err != nil {
+		return nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	rr := rawResponse{}
+	err = bencode.Unmarshal(resp.Body, &rr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode tracker response: %w", err)
+	}
+
+	if rr.FailureReason != "" {
+		return nil, fmt.Errorf("failed to fetch peers from tracker due to: %s", rr.FailureReason)
+	}
+
+	peers, err := extractPeers([]byte(rr.Peers))
+	if err != nil {
+		return nil, err
+	}
+
+	return &Response{
+		Peers:           peers,
+		RefreshInterval: rr.Interval,
+	}, nil
 }
 
 func (m *Metadata) String() (string, error) {
@@ -134,4 +188,22 @@ func split(pieces string) ([][20]byte, error) {
 	}
 
 	return hashes, nil
+}
+
+func extractPeers(bytes []byte) ([]peer.Peer, error) {
+	const peerBytes = 6 // 4 for IP, 2 for port
+	numPeers := len(bytes) / peerBytes
+
+	if len(bytes)%peerBytes != 0 {
+		return nil, fmt.Errorf("received malformed peers list")
+	}
+
+	peers := make([]peer.Peer, numPeers)
+	for i := 0; i < numPeers; i++ {
+		offset := i * peerBytes
+		peers[i].IP = bytes[offset : offset+4]
+		peers[i].Port = binary.BigEndian.Uint16(bytes[offset+4 : offset+6])
+	}
+
+	return peers, nil
 }

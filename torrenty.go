@@ -9,7 +9,6 @@ import (
 	"github.com/xanish/torrenty/internal/downloader"
 	"github.com/xanish/torrenty/internal/logger"
 	"github.com/xanish/torrenty/internal/metadata"
-	"github.com/xanish/torrenty/internal/tracker"
 	"github.com/xanish/torrenty/internal/utility"
 )
 
@@ -36,13 +35,7 @@ func Download(r io.Reader, path string) error {
 		return err
 	}
 
-	trackerURL, err := torrent.TrackerURL(peerID, defaultPort)
-	if err != nil {
-		return err
-	}
-	logger.Log(logger.Info, "generated tracker request url %s", trackerURL)
-
-	tr, err := tracker.Sync(trackerURL)
+	tr, err := torrent.SyncWithTracker(peerID, defaultPort)
 	if err != nil {
 		panic(err)
 	}
