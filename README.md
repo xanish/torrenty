@@ -2,6 +2,13 @@
 
 A simple torrent client written in Go.
 
+## TODO
+
+- Sync peers from tracker every delay specified by tracker.
+  - Need to do this because sometimes tcp connection breaks out.
+  - Also noticed sometimes download does not finish due to missing piece.
+- Gracefully stop and restart workers on refresh of peer data.
+
 ## Usage
 
 TODO
