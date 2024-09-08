@@ -11,11 +11,13 @@ A simple torrent client written in Go.
 
 ## Usage
 
-TODO
+`cd cmd && go run main.go {path_to_torrent_file}`
 
 ## Features And Limitations
 
-TODO
+- Only downloads single file torrents.
+- No seeding.
+- Maybe something else as well.
 
 ## BitTorrent Protocol
 
