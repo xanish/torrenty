@@ -24,9 +24,19 @@ type work struct {
 	result []byte
 }
 
-func retry(w *work, jobs chan<- *work) {
+func retry(w *work, jobs chan<- *work) bool {
+	channelClosed := false
+
+	defer func() {
+		if recover() != nil {
+			channelClosed = true
+		}
+	}()
+
 	w.result = make([]byte, w.size)
 	jobs <- w
+
+	return channelClosed
 }
 
 func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer.Peer, jobs chan *work, results chan<- *work) error {
