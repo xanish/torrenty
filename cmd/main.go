@@ -7,11 +7,8 @@ import (
 )
 
 func main() {
+	torrentPath := os.Args[1]
 	downloadPath, err := filepath.Abs(".")
-	torrentPath, err := filepath.Abs("debian.torrent")
-	if err != nil {
-		panic(err)
-	}
 
 	file, err := os.Open(torrentPath)
 	if err != nil {
