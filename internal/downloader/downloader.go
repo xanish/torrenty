@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"fmt"
-	"github.com/schollz/progressbar/v3"
 	"math"
 	"net"
 	"os"
 
+	"github.com/schollz/progressbar/v3"
 	"github.com/xanish/torrenty/internal/logger"
 	"github.com/xanish/torrenty/internal/message"
 	"github.com/xanish/torrenty/internal/metadata"
@@ -54,6 +54,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 		// continue to next piece of work if this peer does not have the piece
 		exists := utility.PieceExists(job.id, conn.Bitfield)
 		if !exists {
+			logger.Log(logger.Debug, "[worker:%d] peer %s does not have piece for job %d", id, peer.String(), job.id)
 			retry(job, jobs)
 			continue
 		}
@@ -70,8 +71,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 			if err != nil {
 				retry(job, jobs)
 				logger.Log(logger.Error, "[worker:%d] sending message<request> to peer %s failed: %s", id, peer.String(), err)
-				// just break here so that worker can continue fetching more jobs instead of exiting
-				break
+				return nil
 			}
 
 			err = readMessage(conn, job.id, job.result)
@@ -88,6 +88,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 		if !bytes.Equal(hash[:], job.hash[:]) {
 			retry(job, jobs)
 			logger.Log(logger.Info, "[worker:%d] integrity check for piece %d downloaded from %s failed", id, job.id, peer.String())
+			logger.Log(logger.Info, "[worker:%d] expected piece hash to be %x got %x", id, job.hash[:], hash[:])
 			continue
 		} else {
 			logger.Log(logger.Info, "[worker:%d] piece %d verified successfully", id, job.id)
@@ -119,6 +120,7 @@ func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 	for id, remotePeer := range torrent.Peers {
 		logger.Log(logger.Info, "starting worker %d with peer %s", id, remotePeer.String())
 		go func() {
+			// TODO: try to use some pattern here to restart broken workers
 			err := executeWorker(id, torrent, peerID, remotePeer, todo, done)
 			if err != nil {
 				logger.Log(logger.Error, "[worker:%d] failed with error: %s", id, err)
