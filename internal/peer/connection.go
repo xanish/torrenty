@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/xanish/torrenty/internal/handshake"
+	"github.com/xanish/torrenty/internal/logger"
 	"github.com/xanish/torrenty/internal/message"
+	"github.com/xanish/torrenty/internal/utility"
 )
 
 type Connection struct {
@@ -88,8 +90,7 @@ func exchangeHandshake(conn net.Conn, infoHash, peerID [20]byte) (*handshake.Han
 	return res, nil
 }
 
-// readBitfield tries to read the Bitfield message if it was sent by the remote
-// peer on a successful handshake.
+// readBitfield extracts Bitfield from the message payload.
 func readBitfield(conn net.Conn) ([]byte, error) {
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	defer func(conn net.Conn, t time.Time) {
@@ -112,6 +113,64 @@ func readBitfield(conn net.Conn) ([]byte, error) {
 	return msg.Payload, nil
 }
 
+// ReadMessage reads the message received from remote Peer.
+func (c *Connection) ReadMessage(index int, buf []byte) error {
+	msg, err := message.Unmarshal(c.Conn)
+	if err != nil {
+		return err
+	}
+
+	// keep-alive
+	if msg == nil {
+		logger.Log(logger.Debug, "received msg<KeepAlive> from remote peer %s", c.Peer)
+		return nil
+	}
+
+	switch msg.ID {
+	case message.Choke:
+		logger.Log(logger.Debug, "received msg<Choke> from remote peer %s", c.Peer)
+		c.AmChoked = true
+	case message.UnChoke:
+		logger.Log(logger.Debug, "received msg<UnChoke> from remote peer %s", c.Peer)
+		c.AmChoked = false
+	case message.Interested:
+		logger.Log(logger.Debug, "received msg<Interested> from remote peer %s", c.Peer)
+		c.AmInterested = true
+	case message.NotInterested:
+		logger.Log(logger.Debug, "received msg<NotInterested> from remote peer %s", c.Peer)
+		c.AmInterested = false
+	case message.Have:
+		logger.Log(logger.Debug, "received msg<Have, piece:%d> from remote peer %s", index, c.Peer)
+		index, err := message.ParseHave(msg)
+		if err != nil {
+			return err
+		}
+		utility.SetPiece(index, c.Bitfield)
+	case message.Bitfield:
+		logger.Log(logger.Debug, "received msg<Bitfield> = %x from remote peer %s", msg.Payload, c.Peer)
+		c.Bitfield = msg.Payload
+	case message.Request:
+		logger.Log(logger.Debug, "received msg<Request> from remote peer %s", c.Peer)
+		_, _, _, err := message.ParseRequest(msg)
+		if err != nil {
+			return err
+		}
+	case message.Piece:
+		logger.Log(logger.Debug, "received msg<Piece, %d> from remote peer %s", index, c.Peer)
+		_, err := message.ParsePiece(index, buf, msg)
+		if err != nil {
+			return err
+		}
+	case message.Cancel:
+		logger.Log(logger.Debug, "received msg<Cancel> from remote peer %s", c.Peer)
+	case message.Port:
+		logger.Log(logger.Debug, "received msg<Port> from remote peer %s", c.Peer)
+	}
+
+	return nil
+}
+
+// SendChoke sends a message to Choke the remote Peer.
 func (c *Connection) SendChoke() error {
 	_, err := c.Conn.Write(message.NewChoke().Marshal())
 	if err != nil {
@@ -121,6 +180,7 @@ func (c *Connection) SendChoke() error {
 	return nil
 }
 
+// SendUnChoke sends a message to UnChoke the remote Peer.
 func (c *Connection) SendUnChoke() error {
 	_, err := c.Conn.Write(message.NewUnChoke().Marshal())
 	if err != nil {
@@ -130,6 +190,8 @@ func (c *Connection) SendUnChoke() error {
 	return nil
 }
 
+// SendInterested sends a message to denote client interest in the pieces
+// provided by remote Peer.
 func (c *Connection) SendInterested() error {
 	_, err := c.Conn.Write(message.NewInterested().Marshal())
 	if err != nil {
@@ -139,6 +201,8 @@ func (c *Connection) SendInterested() error {
 	return nil
 }
 
+// SendNotInterested sends a message to denote client is not interested in the
+// pieces provided by remote Peer.
 func (c *Connection) SendNotInterested() error {
 	_, err := c.Conn.Write(message.NewNotInterested().Marshal())
 	if err != nil {
@@ -148,6 +212,8 @@ func (c *Connection) SendNotInterested() error {
 	return nil
 }
 
+// SendHave sends a message informing the remote Peer that it has received
+// the piece present at index.
 func (c *Connection) SendHave(index int) error {
 	_, err := c.Conn.Write(message.NewHave(index).Marshal())
 	if err != nil {
@@ -157,6 +223,8 @@ func (c *Connection) SendHave(index int) error {
 	return nil
 }
 
+// SendBitField sends a message to the remote Peer containing the Bitfield
+// denoting all pieces that are available with the client for sharing.
 func (c *Connection) SendBitField(bitfield []byte) error {
 	_, err := c.Conn.Write(message.NewBitfield(bitfield).Marshal())
 	if err != nil {
@@ -166,6 +234,8 @@ func (c *Connection) SendBitField(bitfield []byte) error {
 	return nil
 }
 
+// SendRequest sends a message requesting remote Peer to share a block of
+// length belonging to piece "index".
 func (c *Connection) SendRequest(index, begin, length int) error {
 	_, err := c.Conn.Write(message.NewRequest(index, begin, length).Marshal())
 	if err != nil {
@@ -175,6 +245,8 @@ func (c *Connection) SendRequest(index, begin, length int) error {
 	return nil
 }
 
+// SendPiece sends a message containing the block starting at begin and
+// belonging to piece "index" as requested by remote Peer.
 func (c *Connection) SendPiece(index, begin int, block []byte) error {
 	_, err := c.Conn.Write(message.NewPiece(index, begin, block).Marshal())
 	if err != nil {
@@ -184,6 +256,8 @@ func (c *Connection) SendPiece(index, begin int, block []byte) error {
 	return nil
 }
 
+// SendCancel sends a message to cancel an earlier request for block starting
+// at begin and belonging to piece "index".
 func (c *Connection) SendCancel(index, begin, length int) error {
 	_, err := c.Conn.Write(message.NewCancel(index, begin, length).Marshal())
 	if err != nil {
@@ -193,6 +267,8 @@ func (c *Connection) SendCancel(index, begin, length int) error {
 	return nil
 }
 
+// SendPort sends a message used by newer versions of clients that support
+// connection via the decentralized DHT tracker network.
 func (c *Connection) SendPort(port int) error {
 	_, err := c.Conn.Write(message.NewPort(port).Marshal())
 	if err != nil {

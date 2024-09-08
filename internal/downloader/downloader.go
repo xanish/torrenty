@@ -10,7 +10,6 @@ import (
 
 	"github.com/schollz/progressbar/v3"
 	"github.com/xanish/torrenty/internal/logger"
-	"github.com/xanish/torrenty/internal/message"
 	"github.com/xanish/torrenty/internal/metadata"
 	"github.com/xanish/torrenty/internal/peer"
 	"github.com/xanish/torrenty/internal/utility"
@@ -40,12 +39,14 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 		_ = Conn.Close()
 	}(conn.Conn)
 
+	// Client connections start out as "choked" and "not interested"
+	err = conn.SendUnChoke()
 	err = conn.SendInterested()
 	if err != nil {
 		return fmt.Errorf("[worker:%d] sending interested message to peer %s failed: %w", id, peer.String(), err)
 	}
 
-	err = readMessage(conn, 0, nil)
+	err = conn.ReadMessage(0, nil)
 	if err != nil {
 		return fmt.Errorf("[worker:%d] reading response for message<interested> from peer %s failed: %w", id, peer.String(), err)
 	}
@@ -74,7 +75,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 				return nil
 			}
 
-			err = readMessage(conn, job.id, job.result)
+			err = conn.ReadMessage(job.id, job.result)
 			if err != nil {
 				retry(job, jobs)
 				logger.Log(logger.Error, "[worker:%d] reading response for message<request> from peer %s failed: %s", id, peer.String(), err)
@@ -89,6 +90,9 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 			retry(job, jobs)
 			logger.Log(logger.Info, "[worker:%d] integrity check for piece %d downloaded from %s failed", id, job.id, peer.String())
 			logger.Log(logger.Info, "[worker:%d] expected piece hash to be %x got %x", id, job.hash[:], hash[:])
+
+			// TODO: temp ack-ing to see if some peers stop sending the same piece over and over
+			err = conn.SendHave(job.id)
 			continue
 		} else {
 			logger.Log(logger.Info, "[worker:%d] piece %d verified successfully", id, job.id)
@@ -106,7 +110,7 @@ func executeWorker(id int, torrent metadata.Metadata, peerID [20]byte, peer peer
 }
 
 func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
-	todo := make(chan *work, len(torrent.Pieces))
+	jobs := make(chan *work, len(torrent.Pieces))
 	done := make(chan *work, len(torrent.Peers))
 	for index, hash := range torrent.Pieces {
 		pieceSize := torrent.PieceLength
@@ -114,14 +118,14 @@ func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 		if index == numPieces-1 {
 			pieceSize = torrent.Size % torrent.PieceLength
 		}
-		todo <- &work{index, hash, pieceSize, make([]byte, pieceSize)}
+		jobs <- &work{index, hash, pieceSize, make([]byte, pieceSize)}
 	}
 
 	for id, remotePeer := range torrent.Peers {
 		logger.Log(logger.Info, "starting worker %d with peer %s", id, remotePeer.String())
 		go func() {
 			// TODO: try to use some pattern here to restart broken workers
-			err := executeWorker(id, torrent, peerID, remotePeer, todo, done)
+			err := executeWorker(id, torrent, peerID, remotePeer, jobs, done)
 			if err != nil {
 				logger.Log(logger.Error, "[worker:%d] failed with error: %s", id, err)
 			}
@@ -149,53 +153,9 @@ func Download(peerID [20]byte, torrent metadata.Metadata, w *os.File) error {
 		logger.Log(logger.Info, "progress: (%0.2f%%)", percent)
 	}
 
-	close(todo)
+	close(jobs)
 	close(done)
 	_ = bar.Close()
-
-	return nil
-}
-
-func readMessage(peer *peer.Connection, index int, buf []byte) error {
-	msg, err := message.Unmarshal(peer.Conn)
-	if err != nil {
-		return err
-	}
-
-	// keep-alive
-	if msg == nil {
-		return nil
-	}
-
-	switch msg.ID {
-	case message.Choke:
-		peer.AmChoked = true
-	case message.UnChoke:
-		peer.AmChoked = false
-	case message.Interested:
-		peer.AmInterested = true
-	case message.NotInterested:
-		peer.AmInterested = false
-	case message.Have:
-		index, err := message.ParseHave(msg)
-		if err != nil {
-			return err
-		}
-		utility.SetPiece(index, peer.Bitfield)
-	case message.Bitfield:
-	case message.Request:
-		_, _, _, err := message.ParseRequest(msg)
-		if err != nil {
-			return err
-		}
-	case message.Piece:
-		_, err := message.ParsePiece(index, buf, msg)
-		if err != nil {
-			return err
-		}
-	case message.Cancel:
-	case message.Port:
-	}
 
 	return nil
 }
