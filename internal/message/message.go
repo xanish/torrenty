@@ -229,7 +229,7 @@ func NewRequest(index, begin, length int) *Message {
 func NewPiece(index, begin int, block []byte) *Message {
 	payload := &bytes.Buffer{}
 
-	temp := make([]byte, 8+len(block))
+	temp := make([]byte, 8)
 	binary.BigEndian.PutUint32(temp[0:4], uint32(index))
 	binary.BigEndian.PutUint32(temp[4:8], uint32(begin))
 
