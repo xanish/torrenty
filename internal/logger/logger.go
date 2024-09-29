@@ -1,29 +1,53 @@
 package logger
 
 import (
-	"fmt"
 	"log"
+	"os"
 )
 
+// LogLevel type
+type LogLevel int
+
 const (
-	Debug = iota
+	Debug LogLevel = iota
 	Info
 	Warning
 	Error
 	Fatal
 )
 
-func Log(level int, format string, params ...interface{}) {
+// logger variable
+var logger *log.Logger = log.Default()
+var fatalFunc = os.Exit
+
+// SetLogger allows setting a custom logger for testing
+func setLogger(l *log.Logger) {
+	logger = l
+}
+
+// SetFatalFunc allows setting a custom fatal function for testing
+func setFatalFunc(f func(int)) {
+	fatalFunc = f
+}
+
+// Log helper function
+func Log(level LogLevel, message string, args ...interface{}) {
+	var prefix string
 	switch level {
 	case Debug:
-		log.Println(fmt.Sprintf("[DEBUG] "+format, params...))
+		prefix = "[DEBUG] "
 	case Info:
-		log.Println(fmt.Sprintf("[INFO] "+format, params...))
+		prefix = "[INFO] "
 	case Warning:
-		log.Println(fmt.Sprintf("[WARN] "+format, params...))
+		prefix = "[WARN] "
 	case Error:
-		log.Println(fmt.Sprintf("[ERROR] "+format, params...))
+		prefix = "[ERROR] "
 	case Fatal:
-		log.Fatalln(fmt.Sprintf("[FATAL] "+format, params...))
+		prefix = "[FATAL] "
+	}
+
+	logger.Printf(prefix+message, args...)
+	if prefix == "[FATAL] " {
+		fatalFunc(1)
 	}
 }
