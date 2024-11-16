@@ -1,7 +1,10 @@
 package metadata
 
 import (
+	"bytes"
+	"crypto/sha1"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/jackpal/bencode-go"
@@ -16,6 +19,7 @@ type Metadata struct {
 	CreatedBy    string     `bencode:"created by,omitempty"`
 	Encoding     string     `bencode:"encoding,omitempty"`
 	URLList      []string   `bencode:"url-list,omitempty"`
+	InfoHash     [20]byte
 }
 
 type PieceInfo struct {
@@ -26,6 +30,16 @@ type PieceInfo struct {
 	PieceLength int64  `bencode:"piece length"`
 	Pieces      string `bencode:"pieces"`
 	Private     int    `bencode:"private,omitempty"`
+}
+
+func (pi PieceInfo) hash() ([20]byte, error) {
+	var encoded bytes.Buffer
+	err := bencode.Marshal(&encoded, pi)
+	if err != nil {
+		return [20]byte{}, fmt.Errorf("failed to encode piece info: %w", err)
+	}
+
+	return sha1.Sum(encoded.Bytes()), nil
 }
 
 type File struct {
@@ -62,6 +76,11 @@ func FromFile(r io.Reader) (*Metadata, error) {
 
 	if m.Info.Pieces == "" {
 		return nil, errors.New("file does not contain any pieces")
+	}
+
+	m.InfoHash, err = m.Info.hash()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate info hash: %w", err)
 	}
 
 	return &m, nil

@@ -1,8 +1,9 @@
 package metadata
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFromURL(t *testing.T) {
@@ -11,16 +12,14 @@ func TestFromURL(t *testing.T) {
 		result, err := FromURL(magnet)
 
 		assert.NoError(t, err)
-		assert.Equal(t, "H6NKYFMMPXUN7SVROHVFRIL2VPPX7PET", result.InfoHash)
-		assert.Equal(t, "ubuntu-24.10-desktop-amd64.iso", result.DisplayName)
-		assert.Equal(t, int64(5665497088), result.Length)
-		assert.Len(t, result.Trackers, 3)
-		assert.Contains(t, result.Trackers, "https://torrent.ubuntu.com/announce")
-		assert.Contains(t, result.Trackers, "https://torrent.ubuntu.com/announce")
-		assert.Contains(t, result.Trackers, "https://ipv6.torrent.ubuntu.com/announce")
-		assert.Len(t, result.WebSeeds, 0)
-		assert.Equal(t, "", result.AcceptableSource)
-		assert.Equal(t, "", result.Keyword)
+		assert.Equal(t, [20]byte([]byte("H6NKYFMMPXUN7SVROHVFRIL2VPPX7PET")), result.InfoHash)
+		assert.Equal(t, "ubuntu-24.10-desktop-amd64.iso", result.Info.Name)
+		assert.Equal(t, int64(5665497088), result.Info.Length)
+		assert.Equal(t, "https://torrent.ubuntu.com/announce", result.Announce)
+		assert.Len(t, result.AnnounceList, 3)
+		assert.Contains(t, result.AnnounceList, []string{"https://torrent.ubuntu.com/announce"})
+		assert.Contains(t, result.AnnounceList, []string{"https://torrent.ubuntu.com/announce"})
+		assert.Contains(t, result.AnnounceList, []string{"https://ipv6.torrent.ubuntu.com/announce"})
 	})
 
 	t.Run("invalid scheme", func(t *testing.T) {
@@ -63,7 +62,7 @@ func TestFromURL(t *testing.T) {
 		result, err := FromURL(magnet)
 
 		assert.NoError(t, err)
-		assert.Equal(t, int64(0), result.Length)
+		assert.Equal(t, int64(0), result.Info.Length)
 	})
 
 	t.Run("malformed length parameter", func(t *testing.T) {
@@ -71,7 +70,7 @@ func TestFromURL(t *testing.T) {
 		result, err := FromURL(magnet)
 
 		assert.NoError(t, err)
-		assert.Equal(t, int64(0), result.Length)
+		assert.Equal(t, int64(0), result.Info.Length)
 	})
 
 	t.Run("empty magnet link", func(t *testing.T) {

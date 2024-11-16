@@ -17,7 +17,24 @@ type MagnetLink struct {
 	Keyword          string
 }
 
-func FromURL(magnet string) (*MagnetLink, error) {
+func (ml *MagnetLink) asMetadata() *Metadata {
+	announceList := make([][]string, 0, len(ml.Trackers))
+	for _, tracker := range ml.Trackers {
+		announceList = append(announceList, []string{tracker})
+	}
+
+	return &Metadata{
+		Info: PieceInfo{
+			Name:   ml.DisplayName,
+			Length: ml.Length,
+		},
+		InfoHash:     [20]byte([]byte(ml.InfoHash)),
+		Announce:     ml.Trackers[0],
+		AnnounceList: announceList,
+	}
+}
+
+func FromURL(magnet string) (*Metadata, error) {
 	parsed, err := url.Parse(magnet)
 	if err != nil {
 		return nil, err
@@ -59,5 +76,5 @@ func FromURL(magnet string) (*MagnetLink, error) {
 		return nil, errors.New("magnet link does not contain trackers")
 	}
 
-	return &ml, nil
+	return ml.asMetadata(), nil
 }
