@@ -9,7 +9,7 @@ import (
 
 func TestFromFile(t *testing.T) {
 	t.Run("valid metadata", func(t *testing.T) {
-		data := []byte("d8:announce35:https://torrent.ubuntu.com/announce13:announce-listll35:https://torrent.ubuntu.com/announceel40:https://ipv6.torrent.ubuntu.com/announceee7:comment29:Ubuntu CD releases.ubuntu.com10:created by13:mktorrent 1.113:creation datei1728557557e4:infod6:lengthi5665497088e4:name30:ubuntu-24.10-desktop-amd64.iso12:piece lengthi262144e6:pieces36:abcdefghijklmnopqrstuvwxyz1234567890ee")
+		data := []byte("d8:announce35:https://torrent.ubuntu.com/announce13:announce-listll35:https://torrent.ubuntu.com/announceel40:https://ipv6.torrent.ubuntu.com/announceee7:comment29:Ubuntu CD releases.ubuntu.com10:created by13:mktorrent 1.113:creation datei1728557557e4:infod6:lengthi5665497088e4:name30:ubuntu-24.10-desktop-amd64.iso12:piece lengthi262144e6:pieces40:abcdefghijklmnopqrstuvwxyz1234567890qweree")
 		r := bytes.NewReader(data)
 
 		expectedMetadata := &Metadata{
@@ -24,15 +24,19 @@ func TestFromFile(t *testing.T) {
 				MD5Sum:      "",
 				Files:       nil,
 				PieceLength: 262144,
-				Pieces:      "abcdefghijklmnopqrstuvwxyz1234567890",
-				Private:     0,
+				Pieces:      "abcdefghijklmnopqrstuvwxyz1234567890qwer",
+				PieceList: [][20]uint8{
+					{0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73, 0x74},
+					{0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x71, 0x77, 0x65, 0x72},
+				},
+				Private: 0,
 			},
 			CreationDate: 1728557557,
 			Comment:      "Ubuntu CD releases.ubuntu.com",
 			CreatedBy:    "mktorrent 1.1",
 			Encoding:     "",
 			URLList:      nil,
-			InfoHash:     [20]byte{0xc9, 0x6b, 0x2a, 0x9b, 0xa9, 0xed, 0x1b, 0xd2, 0x58, 0x2c, 0x78, 0x5d, 0xa8, 0xa8, 0x6f, 0x2c, 0xd5, 0x51, 0x7c, 0x7},
+			InfoHash:     [20]byte{0x40, 0x61, 0xa1, 0x56, 0x6f, 0xd2, 0xf, 0xa7, 0x62, 0x40, 0x51, 0xe8, 0x6b, 0x2d, 0x33, 0x6c, 0x84, 0x85, 0xf1, 0xd4},
 		}
 
 		metadata, err := FromFile(r)
@@ -59,7 +63,7 @@ func TestFromFile(t *testing.T) {
 	})
 
 	t.Run("file array present", func(t *testing.T) {
-		data := []byte("d8:announce35:http://tracker.example.com/announce4:infod5:filesld6:lengthi111e4:pathl7:111.txteed6:lengthi222e4:pathl7:222.txteee4:name13:directoryName12:piece lengthi262144e6:pieces36:abcdefghijklmnopqrstuvwxyz1234567890ee")
+		data := []byte("d8:announce35:http://tracker.example.com/announce4:infod5:filesld6:lengthi111e4:pathl7:111.txteed6:lengthi222e4:pathl7:222.txteee4:name13:directoryName12:piece lengthi262144e6:pieces40:abcdefghijklmnopqrstuvwxyz1234567890qweree")
 		r := bytes.NewReader(data)
 
 		expectedMetadata := &Metadata{
@@ -74,15 +78,19 @@ func TestFromFile(t *testing.T) {
 					{Length: 222, MD5Sum: "", Path: []string{"222.txt"}},
 				},
 				PieceLength: 262144,
-				Pieces:      "abcdefghijklmnopqrstuvwxyz1234567890",
-				Private:     0,
+				Pieces:      "abcdefghijklmnopqrstuvwxyz1234567890qwer",
+				PieceList: [][20]uint8{
+					{0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73, 0x74},
+					{0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x71, 0x77, 0x65, 0x72},
+				},
+				Private: 0,
 			},
 			CreationDate: 0,
 			Comment:      "",
 			CreatedBy:    "",
 			Encoding:     "",
 			URLList:      nil,
-			InfoHash:     [20]byte{0x95, 0xe7, 0x27, 0xf1, 0x8c, 0xff, 0xf2, 0x3c, 0x3a, 0xd3, 0xf4, 0xe, 0xd7, 0x69, 0x76, 0x21, 0xe8, 0x12, 0xa0, 0xb8},
+			InfoHash:     [20]byte{0x29, 0xba, 0x57, 0xdf, 0xe8, 0xb, 0x1d, 0x94, 0xbe, 0x5d, 0xb, 0xfb, 0xc7, 0xfa, 0x17, 0x75, 0x73, 0xf6, 0xe7, 0x69},
 		}
 
 		metadata, err := FromFile(r)
@@ -136,7 +144,7 @@ func TestFromFile(t *testing.T) {
 	})
 
 	t.Run("announce set from announce-list", func(t *testing.T) {
-		data := []byte("d13:announce-listll35:https://torrent.ubuntu.com/announceel40:https://ipv6.torrent.ubuntu.com/announceee7:comment29:Ubuntu CD releases.ubuntu.com10:created by13:mktorrent 1.113:creation datei1728557557e4:infod6:lengthi5665497088e4:name30:ubuntu-24.10-desktop-amd64.iso12:piece lengthi262144e6:pieces36:abcdefghijklmnopqrstuvwxyz1234567890ee")
+		data := []byte("d13:announce-listll35:https://torrent.ubuntu.com/announceel40:https://ipv6.torrent.ubuntu.com/announceee7:comment29:Ubuntu CD releases.ubuntu.com10:created by13:mktorrent 1.113:creation datei1728557557e4:infod6:lengthi5665497088e4:name30:ubuntu-24.10-desktop-amd64.iso12:piece lengthi262144e6:pieces40:abcdefghijklmnopqrstuvwxyz1234567890qweree")
 		r := bytes.NewReader(data)
 
 		expectedMetadata := &Metadata{
@@ -151,15 +159,19 @@ func TestFromFile(t *testing.T) {
 				MD5Sum:      "",
 				Files:       nil,
 				PieceLength: 262144,
-				Pieces:      "abcdefghijklmnopqrstuvwxyz1234567890",
-				Private:     0,
+				Pieces:      "abcdefghijklmnopqrstuvwxyz1234567890qwer",
+				PieceList: [][20]uint8{
+					{0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73, 0x74},
+					{0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x71, 0x77, 0x65, 0x72},
+				},
+				Private: 0,
 			},
 			CreationDate: 1728557557,
 			Comment:      "Ubuntu CD releases.ubuntu.com",
 			CreatedBy:    "mktorrent 1.1",
 			Encoding:     "",
 			URLList:      nil,
-			InfoHash:     [20]byte{0xc9, 0x6b, 0x2a, 0x9b, 0xa9, 0xed, 0x1b, 0xd2, 0x58, 0x2c, 0x78, 0x5d, 0xa8, 0xa8, 0x6f, 0x2c, 0xd5, 0x51, 0x7c, 0x7},
+			InfoHash:     [20]byte{0x40, 0x61, 0xa1, 0x56, 0x6f, 0xd2, 0xf, 0xa7, 0x62, 0x40, 0x51, 0xe8, 0x6b, 0x2d, 0x33, 0x6c, 0x84, 0x85, 0xf1, 0xd4},
 		}
 
 		metadata, err := FromFile(r)
@@ -168,7 +180,7 @@ func TestFromFile(t *testing.T) {
 	})
 
 	t.Run("invalid announce", func(t *testing.T) {
-		data := []byte("d8:announce36:https://torrent^.ubuntu.com/announce13:announce-listll35:https://torrent.ubuntu.com/announceel40:https://ipv6.torrent.ubuntu.com/announceee7:comment29:Ubuntu CD releases.ubuntu.com10:created by13:mktorrent 1.113:creation datei1728557557e4:infod6:lengthi5665497088e4:name30:ubuntu-24.10-desktop-amd64.iso12:piece lengthi262144e6:pieces36:abcdefghijklmnopqrstuvwxyz1234567890ee")
+		data := []byte("d8:announce36:https://torrent^.ubuntu.com/announce13:announce-listll35:https://torrent.ubuntu.com/announceel40:https://ipv6.torrent.ubuntu.com/announceee7:comment29:Ubuntu CD releases.ubuntu.com10:created by13:mktorrent 1.113:creation datei1728557557e4:infod6:lengthi5665497088e4:name30:ubuntu-24.10-desktop-amd64.iso12:piece lengthi262144e6:pieces40:abcdefghijklmnopqrstuvwxyz1234567890qweree")
 		r := bytes.NewReader(data)
 
 		metadata, err := FromFile(r)

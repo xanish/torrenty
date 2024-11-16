@@ -30,7 +30,8 @@ type PieceInfo struct {
 	Files       []File `bencode:"files,omitempty"`
 	PieceLength int64  `bencode:"piece length"`
 	Pieces      string `bencode:"pieces"`
-	Private     int    `bencode:"private,omitempty"`
+	PieceList   [][20]byte
+	Private     int `bencode:"private,omitempty"`
 }
 
 func (pi PieceInfo) hash() ([20]byte, error) {
@@ -41,6 +42,23 @@ func (pi PieceInfo) hash() ([20]byte, error) {
 	}
 
 	return sha1.Sum(encoded.Bytes()), nil
+}
+
+func (pi PieceInfo) splitPieces() ([][20]byte, error) {
+	hashLength := 20
+
+	buf := []byte(pi.Pieces)
+	if len(buf)%hashLength != 0 {
+		return nil, fmt.Errorf("received malformed pieces from tracker")
+	}
+
+	numHashes := len(buf) / hashLength
+	hashes := make([][20]byte, numHashes)
+	for i := 0; i < numHashes; i++ {
+		copy(hashes[i][:], buf[i*hashLength:(i+1)*hashLength])
+	}
+
+	return hashes, nil
 }
 
 type File struct {
@@ -82,6 +100,11 @@ func FromFile(r io.Reader) (*Metadata, error) {
 
 	if m.Info.Pieces == "" {
 		return nil, errors.New("file does not contain any pieces")
+	}
+
+	m.Info.PieceList, err = m.Info.splitPieces()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pieces: %w", err)
 	}
 
 	m.InfoHash, err = m.Info.hash()
