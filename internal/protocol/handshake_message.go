@@ -51,28 +51,29 @@ func (h *Handshake) Marshal() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (h *Handshake) Unmarshal(r io.Reader) error {
+func UnmarshalHandshake(r io.Reader) (*Handshake, error) {
 	lengthBuf := make([]byte, 1)
 	_, err := io.ReadFull(r, lengthBuf)
 	if err != nil {
-		return fmt.Errorf("failed to read handshake payload length: %w", err)
+		return nil, fmt.Errorf("failed to read handshake payload length: %w", err)
 	}
 
 	pstrLen := int(lengthBuf[0])
 	if pstrLen == 0 {
-		return fmt.Errorf("handshake payload length cannot be 0")
+		return nil, fmt.Errorf("handshake payload length cannot be 0")
 	}
 
 	payloadBuf := make([]byte, 48+pstrLen)
 	_, err = io.ReadFull(r, payloadBuf)
 	if err != nil {
-		return fmt.Errorf("failed to read handshake payload: %w", err)
+		return nil, fmt.Errorf("failed to read handshake payload: %w", err)
 	}
 
-	h.Pstr = string(payloadBuf[:pstrLen])
-	h.Reserved = [8]byte(payloadBuf[pstrLen : pstrLen+8])
-	h.InfoHash = [20]byte(payloadBuf[pstrLen+8 : pstrLen+28])
-	h.PeerID = [20]byte(payloadBuf[pstrLen+28:])
-
-	return nil
+	h := &Handshake{
+		Pstr:     string(payloadBuf[:pstrLen]),
+		Reserved: [8]byte(payloadBuf[pstrLen : pstrLen+8]),
+		InfoHash: [20]byte(payloadBuf[pstrLen+8 : pstrLen+28]),
+		PeerID:   [20]byte(payloadBuf[pstrLen+28:]),
+	}
+	return h, nil
 }

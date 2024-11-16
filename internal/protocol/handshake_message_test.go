@@ -75,8 +75,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		h := Handshake{}
-		err := h.Unmarshal(bytes.NewReader(test.input))
+		h, err := UnmarshalHandshake(bytes.NewReader(test.input))
 		if test.err == nil {
 			if err != nil {
 				t.Errorf("expected error to be nil, got %#v", err)
