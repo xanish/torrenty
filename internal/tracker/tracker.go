@@ -1,0 +1,94 @@
+package tracker
+
+import (
+	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
+
+	"github.com/jackpal/bencode-go"
+	"github.com/xanish/torrenty/internal/metadata"
+	"github.com/xanish/torrenty/internal/peer"
+)
+
+type Tracker struct {
+	peerID   [20]byte
+	port     uint16
+	torrent  metadata.Metadata
+	progress struct {
+		downloaded int64
+		uploaded   int64
+		remaining  int64
+	}
+}
+
+type Response struct {
+	FailureReason  string `bencode:"failure reason"`
+	WarningMessage string `bencode:"warning message"`
+	Interval       int64  `bencode:"interval"`
+	MinInterval    int64  `bencode:"min interval,omitempty"`
+	TrackerID      string `bencode:"tracker id"`
+	Complete       int64  `bencode:"complete"`
+	Incomplete     int64  `bencode:"incomplete"`
+	Peers          string `bencode:"peers"`
+}
+
+func New(peerID [20]byte, port uint16, torrent metadata.Metadata) *Tracker {
+	return &Tracker{
+		peerID:  peerID,
+		port:    port,
+		torrent: torrent,
+	}
+}
+
+func (t *Tracker) URL() string {
+	baseUrl, _ := url.Parse(t.torrent.Announce)
+
+	params := url.Values{
+		"info_hash":  []string{string(t.torrent.InfoHash[:])},
+		"peer_id":    []string{string(t.peerID[:])},
+		"port":       []string{strconv.Itoa(int(t.port))},
+		"uploaded":   []string{strconv.FormatInt(t.progress.uploaded, 10)},
+		"downloaded": []string{strconv.FormatInt(t.progress.downloaded, 10)},
+		"left":       []string{strconv.FormatInt(t.progress.remaining, 10)},
+		"compact":    []string{"1"},
+		"event":      []string{"started"}, // todo: send this as stopped or completed depending on state
+	}
+
+	baseUrl.RawQuery = params.Encode()
+
+	return baseUrl.String()
+}
+
+func (t *Tracker) Refresh() ([]peer.Peer, time.Duration, error) {
+	c := &http.Client{Timeout: 10 * time.Second}
+	tracker := t.URL()
+
+	resp, err := c.Get(tracker)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to fetch tracker metadata: %w", err)
+	}
+	defer resp.Body.Close()
+
+	trackerResp := Response{}
+	err = bencode.Unmarshal(resp.Body, &trackerResp)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to decode tracker response: %w", err)
+	}
+
+	if trackerResp.FailureReason != "" {
+		return nil, 0, fmt.Errorf("tracker returned an error: %s", trackerResp.FailureReason)
+	}
+
+	if trackerResp.WarningMessage != "" {
+		// todo: log msg
+	}
+
+	peers, err := peer.New(trackerResp.Peers)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to parse peers from tracker response: %w", err)
+	}
+
+	return peers, time.Duration(trackerResp.Interval) * time.Second, nil
+}
