@@ -166,4 +166,13 @@ func TestFromFile(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, expectedMetadata, metadata)
 	})
+
+	t.Run("invalid announce", func(t *testing.T) {
+		data := []byte("d8:announce36:https://torrent^.ubuntu.com/announce13:announce-listll35:https://torrent.ubuntu.com/announceel40:https://ipv6.torrent.ubuntu.com/announceee7:comment29:Ubuntu CD releases.ubuntu.com10:created by13:mktorrent 1.113:creation datei1728557557e4:infod6:lengthi5665497088e4:name30:ubuntu-24.10-desktop-amd64.iso12:piece lengthi262144e6:pieces36:abcdefghijklmnopqrstuvwxyz1234567890ee")
+		r := bytes.NewReader(data)
+
+		metadata, err := FromFile(r)
+		assert.Error(t, err)
+		assert.Nil(t, metadata)
+	})
 }

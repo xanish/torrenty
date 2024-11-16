@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 
 	"github.com/jackpal/bencode-go"
 )
@@ -64,6 +65,11 @@ func FromFile(r io.Reader) (*Metadata, error) {
 			return nil, errors.New("file does not contain any announces")
 		}
 		m.Announce = m.AnnounceList[0][0]
+	}
+
+	_, err = url.Parse(m.Announce)
+	if err != nil {
+		return nil, fmt.Errorf("invalid announce: %w", err)
 	}
 
 	if m.Info.Name == "" {
