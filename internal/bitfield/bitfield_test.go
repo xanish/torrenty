@@ -43,7 +43,7 @@ func TestHasPiece(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.bf.HasPiece(tt.index)
+			result := tt.bf.HasPiece(uint32(tt.index))
 			if result != tt.expected {
 				t.Errorf("HasPiece(%d) = %v, want %v", tt.index, result, tt.expected)
 			}
@@ -92,7 +92,7 @@ func TestSetPiece(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.bf.SetPiece(tt.index)
+			tt.bf.SetPiece(uint32(tt.index))
 			for i := range tt.bf {
 				if tt.bf[i] != tt.expected[i] {
 					t.Errorf("SetPiece(%d) = %v, want %v", tt.index, tt.bf, tt.expected)
