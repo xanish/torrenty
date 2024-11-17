@@ -13,7 +13,7 @@ type mockWorker struct {
 	mock.Mock
 }
 
-func (m *mockWorker) DoWork(jobs <-chan int, results chan<- string) error {
+func (m *mockWorker) DoWork(jobs chan int, results chan<- string) error {
 	m.Called(jobs, results)
 	for job := range jobs {
 		results <- "processed " + strconv.Itoa(job)
@@ -25,7 +25,7 @@ func (m *mockWorker) DoWork(jobs <-chan int, results chan<- string) error {
 func TestWorkerPool(t *testing.T) {
 	t.Run("new worker pool with valid parameters", func(t *testing.T) {
 		mockWorkers := []Worker[int, string]{&mockWorker{}}
-		jobs := make(<-chan int)
+		jobs := make(chan int)
 		results := make(chan<- string)
 
 		wp := New(mockWorkers, jobs, results)
@@ -39,7 +39,7 @@ func TestWorkerPool(t *testing.T) {
 		jobs := make(chan int)
 		results := make(chan string, 2)
 		worker := new(mockWorker)
-		worker.On("DoWork", mock.AnythingOfType("<-chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
+		worker.On("DoWork", mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
 
 		wp := New([]Worker[int, string]{worker}, jobs, results)
 		go wp.Start()
@@ -59,8 +59,8 @@ func TestWorkerPool(t *testing.T) {
 
 		worker1 := new(mockWorker)
 		worker2 := new(mockWorker)
-		worker1.On("DoWork", mock.AnythingOfType("<-chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
-		worker2.On("DoWork", mock.AnythingOfType("<-chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
+		worker1.On("DoWork", mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
+		worker2.On("DoWork", mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
 
 		wp := New([]Worker[int, string]{worker1, worker2}, jobs, results)
 
@@ -89,7 +89,7 @@ func TestWorkerPool(t *testing.T) {
 		jobs := make(chan int)
 		results := make(chan string)
 		worker := new(mockWorker)
-		worker.On("DoWork", mock.AnythingOfType("<-chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
+		worker.On("DoWork", mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
 
 		wp := New([]Worker[int, string]{worker}, jobs, results)
 
