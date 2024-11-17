@@ -13,11 +13,13 @@ type mockWorker struct {
 	mock.Mock
 }
 
-func (m *mockWorker) DoWork(jobs <-chan int, results chan<- string) {
+func (m *mockWorker) DoWork(jobs <-chan int, results chan<- string) error {
 	m.Called(jobs, results)
 	for job := range jobs {
 		results <- "processed " + strconv.Itoa(job)
 	}
+
+	return nil
 }
 
 func TestWorkerPool(t *testing.T) {

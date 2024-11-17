@@ -5,7 +5,7 @@ import (
 )
 
 type Worker[T, U any] interface {
-	DoWork(jobs <-chan T, results chan<- U)
+	DoWork(jobs <-chan T, results chan<- U) error
 }
 
 type WorkerPool[T, U any] struct {
