@@ -10,7 +10,7 @@ import (
 type MagnetLink struct {
 	InfoHash         string
 	DisplayName      string
-	Length           int64
+	Length           uint64
 	Trackers         []string
 	WebSeeds         []string
 	AcceptableSource string
@@ -52,7 +52,7 @@ func FromURL(magnet string) (*Metadata, error) {
 		case "dn":
 			ml.DisplayName = values[0]
 		case "xl":
-			ml.Length, _ = strconv.ParseInt(values[0], 10, 64)
+			ml.Length, _ = strconv.ParseUint(values[0], 10, 64)
 		case "tr":
 			ml.Trackers = append(ml.Trackers, values...)
 		case "ws":

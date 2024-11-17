@@ -15,7 +15,7 @@ type Metadata struct {
 	Info         PieceInfo  `bencode:"info"`
 	Announce     string     `bencode:"announce"`
 	AnnounceList [][]string `bencode:"announce-list,omitempty"`
-	CreationDate int64      `bencode:"creation date,omitempty"`
+	CreationDate uint64     `bencode:"creation date,omitempty"`
 	Comment      string     `bencode:"comment,omitempty"`
 	CreatedBy    string     `bencode:"created by,omitempty"`
 	Encoding     string     `bencode:"encoding,omitempty"`
@@ -25,13 +25,13 @@ type Metadata struct {
 
 type PieceInfo struct {
 	Name        string `bencode:"name"`
-	Length      int64  `bencode:"length,omitempty"`
+	Length      uint64 `bencode:"length,omitempty"`
 	MD5Sum      string `bencode:"md5sum,omitempty"`
 	Files       []File `bencode:"files,omitempty"`
-	PieceLength int64  `bencode:"piece length"`
+	PieceLength uint32 `bencode:"piece length"`
 	Pieces      string `bencode:"pieces"`
 	PieceList   [][20]byte
-	Private     int `bencode:"private,omitempty"`
+	Private     uint8 `bencode:"private,omitempty"`
 }
 
 func (pi PieceInfo) hash() ([20]byte, error) {
