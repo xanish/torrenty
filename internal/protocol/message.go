@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/xanish/torrenty/internal/bitfield"
 	"io"
+
+	"github.com/xanish/torrenty/internal/bitfield"
 )
 
 type MsgType uint8
@@ -37,7 +38,7 @@ var msgTypeNames = map[MsgType]string{
 }
 
 type Message struct {
-	ID      MsgType
+	Type    MsgType
 	Payload []byte
 }
 
@@ -46,7 +47,7 @@ func (m *Message) name() string {
 		return "KeepAlive"
 	}
 
-	return msgTypeNames[m.ID]
+	return msgTypeNames[m.Type]
 }
 
 func (m *Message) Marshal() []byte {
@@ -63,8 +64,8 @@ func (m *Message) Marshal() []byte {
 	buf := make([]byte, 4+length)
 	binary.BigEndian.PutUint32(buf[0:4], length)
 
-	// The message ID is a single decimal byte.
-	buf[4] = byte(m.ID)
+	// The message Type is a single decimal byte.
+	buf[4] = byte(m.Type)
 
 	// The payload size is message dependent.
 	copy(buf[5:], m.Payload)
@@ -92,7 +93,7 @@ func UnmarshalMessage(r io.Reader) (*Message, error) {
 	}
 
 	return &Message{
-		ID:      MsgType(payloadBuf[0]),
+		Type:    MsgType(payloadBuf[0]),
 		Payload: payloadBuf[1:],
 	}, nil
 }
@@ -102,7 +103,7 @@ func (m *Message) String() string {
 		return m.name()
 	}
 
-	return fmt.Sprintf("message<%s>: <len=%d><id=%d>", m.name(), len(m.Payload), m.ID)
+	return fmt.Sprintf("message<%s>: <len=%d><id=%d>", m.name(), len(m.Payload), m.Type)
 }
 
 type MessageConf struct {
@@ -118,27 +119,27 @@ type MessageConf struct {
 func NewMessage(conf MessageConf) *Message {
 	switch conf.Type {
 	case MsgTypeChoke:
-		return &Message{ID: MsgTypeChoke}
+		return &Message{Type: MsgTypeChoke}
 	case MsgTypeUnChoke:
-		return &Message{ID: MsgTypeUnChoke}
+		return &Message{Type: MsgTypeUnChoke}
 	case MsgTypeInterested:
-		return &Message{ID: MsgTypeInterested}
+		return &Message{Type: MsgTypeInterested}
 	case MsgTypeNotInterested:
-		return &Message{ID: MsgTypeNotInterested}
+		return &Message{Type: MsgTypeNotInterested}
 	case MsgTypeHave:
 		payload := make([]byte, 4)
 		binary.BigEndian.PutUint32(payload, conf.PieceIndex)
 
-		return &Message{ID: MsgTypeHave, Payload: payload}
+		return &Message{Type: MsgTypeHave, Payload: payload}
 	case MsgTypeBitfield:
-		return &Message{ID: MsgTypeBitfield, Payload: conf.Bitfield}
+		return &Message{Type: MsgTypeBitfield, Payload: conf.Bitfield}
 	case MsgTypeRequest:
 		payload := make([]byte, 12)
 		binary.BigEndian.PutUint32(payload[0:4], conf.PieceIndex)
 		binary.BigEndian.PutUint32(payload[4:8], conf.Begin)
 		binary.BigEndian.PutUint32(payload[8:12], conf.Length)
 
-		return &Message{ID: MsgTypeRequest, Payload: payload}
+		return &Message{Type: MsgTypeRequest, Payload: payload}
 	case MsgTypePiece:
 		payload := &bytes.Buffer{}
 		temp := make([]byte, 8)
@@ -148,26 +149,26 @@ func NewMessage(conf MessageConf) *Message {
 		payload.Write(temp)
 		payload.Write(conf.Piece)
 
-		return &Message{ID: MsgTypePiece, Payload: payload.Bytes()}
+		return &Message{Type: MsgTypePiece, Payload: payload.Bytes()}
 	case MsgTypeCancel:
 		payload := make([]byte, 12)
 		binary.BigEndian.PutUint32(payload[0:4], conf.PieceIndex)
 		binary.BigEndian.PutUint32(payload[4:8], conf.Begin)
 		binary.BigEndian.PutUint32(payload[8:12], conf.Length)
 
-		return &Message{ID: MsgTypeCancel, Payload: payload}
+		return &Message{Type: MsgTypeCancel, Payload: payload}
 	case MsgTypePort:
 		payload := make([]byte, 2)
 		binary.BigEndian.PutUint16(payload, conf.Port)
 
-		return &Message{ID: MsgTypePort, Payload: payload}
+		return &Message{Type: MsgTypePort, Payload: payload}
 	}
 
 	return nil
 }
 
-func ParseHave(msg *Message) (int, error) {
-	if msg.ID != MsgTypeHave {
+func ParseHave(msg *Message) (uint32, error) {
+	if msg.Type != MsgTypeHave {
 		return 0, fmt.Errorf("expected message<have> but got %s", msg)
 	}
 
@@ -175,13 +176,13 @@ func ParseHave(msg *Message) (int, error) {
 		return 0, fmt.Errorf("expected payload length to be 4, got %d", len(msg.Payload))
 	}
 
-	index := int(binary.BigEndian.Uint32(msg.Payload))
+	index := binary.BigEndian.Uint32(msg.Payload)
 
 	return index, nil
 }
 
 func ParseRequest(msg *Message) (int, int, int, error) {
-	if msg.ID != MsgTypeRequest {
+	if msg.Type != MsgTypeRequest {
 		return 0, 0, 0, fmt.Errorf("expected message<request> but got %s", msg)
 	}
 
@@ -197,7 +198,7 @@ func ParseRequest(msg *Message) (int, int, int, error) {
 }
 
 func ParsePiece(index int, out []byte, msg *Message) (int, error) {
-	if msg.ID != MsgTypePiece {
+	if msg.Type != MsgTypePiece {
 		return 0, fmt.Errorf("expected message<piece> but got %s", msg)
 	}
 
@@ -227,7 +228,7 @@ func ParsePiece(index int, out []byte, msg *Message) (int, error) {
 }
 
 func ParseCancel(msg *Message) (int, int, int, error) {
-	if msg.ID != MsgTypeCancel {
+	if msg.Type != MsgTypeCancel {
 		return 0, 0, 0, fmt.Errorf("expected message<cancel> but got %s", msg)
 	}
 
