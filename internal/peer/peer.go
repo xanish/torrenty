@@ -104,11 +104,16 @@ func (p *Peer) Close() error {
 func (p *Peer) HasPiece(index uint32) bool { return p.bitfield.HasPiece(index) }
 
 func (p *Peer) Send(msg protocol.MessageConf) error {
-	return nil
+	return p.conn.SendMessage(protocol.NewMessage(msg))
 }
 
 func (p *Peer) Read() ([]byte, error) {
-	return nil, nil
+	resp, err := p.conn.ReadMessage()
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Payload, nil
 }
 
 func (p *Peer) String() string {
