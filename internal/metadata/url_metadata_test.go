@@ -14,7 +14,7 @@ func TestFromURL(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, [20]byte([]byte("H6NKYFMMPXUN7SVROHVFRIL2VPPX7PET")), result.InfoHash)
 		assert.Equal(t, "ubuntu-24.10-desktop-amd64.iso", result.Info.Name)
-		assert.Equal(t, int64(5665497088), result.Info.Length)
+		assert.Equal(t, uint64(5665497088), result.Info.Length)
 		assert.Equal(t, "https://torrent.ubuntu.com/announce", result.Announce)
 		assert.Len(t, result.AnnounceList, 3)
 		assert.Contains(t, result.AnnounceList, []string{"https://torrent.ubuntu.com/announce"})
@@ -62,7 +62,7 @@ func TestFromURL(t *testing.T) {
 		result, err := FromURL(magnet)
 
 		assert.NoError(t, err)
-		assert.Equal(t, int64(0), result.Info.Length)
+		assert.Equal(t, uint64(0), result.Info.Length)
 	})
 
 	t.Run("malformed length parameter", func(t *testing.T) {
@@ -70,7 +70,7 @@ func TestFromURL(t *testing.T) {
 		result, err := FromURL(magnet)
 
 		assert.NoError(t, err)
-		assert.Equal(t, int64(0), result.Info.Length)
+		assert.Equal(t, uint64(0), result.Info.Length)
 	})
 
 	t.Run("empty magnet link", func(t *testing.T) {
