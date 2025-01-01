@@ -3,11 +3,11 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/xanish/torrenty/internal/bitfield"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xanish/torrenty/internal/bitfield"
 )
 
 func TestMessage_Name(t *testing.T) {
@@ -30,7 +30,7 @@ func TestMessage_Name(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				msg := &Message{ID: tt.msgID}
+				msg := &Message{Type: tt.msgID}
 				assert.Equal(t, tt.name, msg.name())
 			})
 		}
@@ -45,7 +45,7 @@ func TestMessage_Name(t *testing.T) {
 func TestMessage_Marshal(t *testing.T) {
 	t.Run("valid message with payload", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeHave,
+			Type:    MsgTypeHave,
 			Payload: []byte{0, 0, 0, 1},
 		}
 		expected := []byte{0, 0, 0, 5, 4, 0, 0, 0, 1}
@@ -66,7 +66,7 @@ func TestUnmarshalMessage(t *testing.T) {
 		msg, err := UnmarshalMessage(buf)
 		require.NoError(t, err)
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypeHave, msg.ID)
+		assert.Equal(t, MsgTypeHave, msg.Type)
 		assert.Equal(t, []byte{0, 0, 0, 1}, msg.Payload)
 	})
 
@@ -90,39 +90,39 @@ func TestUnmarshalMessage(t *testing.T) {
 func TestParseHave(t *testing.T) {
 	t.Run("valid have message", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeHave,
+			Type:    MsgTypeHave,
 			Payload: []byte{0, 0, 0, 5},
 		}
 		index, err := ParseHave(msg)
 		require.NoError(t, err)
-		assert.Equal(t, 5, index)
+		assert.Equal(t, uint32(5), index)
 	})
 
 	t.Run("invalid have message type", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeChoke,
+			Type:    MsgTypeChoke,
 			Payload: []byte{0, 0, 0, 5},
 		}
 		index, err := ParseHave(msg)
 		assert.Error(t, err)
-		assert.Equal(t, 0, index)
+		assert.Equal(t, uint32(0), index)
 	})
 
 	t.Run("invalid payload length", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeHave,
+			Type:    MsgTypeHave,
 			Payload: []byte{0, 0},
 		}
 		index, err := ParseHave(msg)
 		assert.Error(t, err)
-		assert.Equal(t, 0, index)
+		assert.Equal(t, uint32(0), index)
 	})
 }
 
 func TestParseRequest(t *testing.T) {
 	t.Run("valid request message", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeRequest,
+			Type:    MsgTypeRequest,
 			Payload: []byte{0, 0, 0, 5, 0, 0, 0, 10, 0, 0, 0, 15},
 		}
 		index, begin, length, err := ParseRequest(msg)
@@ -134,7 +134,7 @@ func TestParseRequest(t *testing.T) {
 
 	t.Run("invalid request message type", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeChoke,
+			Type:    MsgTypeChoke,
 			Payload: []byte{0, 0, 0, 5, 0, 0, 0, 10, 0, 0, 0, 15},
 		}
 		index, begin, length, err := ParseRequest(msg)
@@ -146,7 +146,7 @@ func TestParseRequest(t *testing.T) {
 
 	t.Run("invalid payload length", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeRequest,
+			Type:    MsgTypeRequest,
 			Payload: []byte{0, 0, 0, 5},
 		}
 		index, begin, length, err := ParseRequest(msg)
@@ -160,54 +160,40 @@ func TestParseRequest(t *testing.T) {
 func TestParsePiece(t *testing.T) {
 	t.Run("valid piece message", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypePiece,
+			Type:    MsgTypePiece,
 			Payload: append([]byte{0, 0, 0, 5, 0, 0, 0, 10}, []byte("piece data")...),
 		}
-		out := make([]byte, 20)
-		n, err := ParsePiece(5, out, msg)
+		n, err := ParsePiece(msg)
 		require.NoError(t, err)
-		assert.Equal(t, 10, n)
-		assert.Equal(t, "piece data", string(out[10:]))
+		assert.Equal(t, 10, len(n.Data))
+		assert.Equal(t, "piece data", string(n.Data))
 	})
 
 	t.Run("invalid piece message type", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeChoke,
+			Type:    MsgTypeChoke,
 			Payload: []byte{0, 0, 0, 5, 0, 0, 0, 10},
 		}
-		out := make([]byte, 20)
-		n, err := ParsePiece(5, out, msg)
+		n, err := ParsePiece(msg)
 		assert.Error(t, err)
-		assert.Equal(t, 0, n)
+		assert.Nil(t, n)
 	})
 
 	t.Run("invalid payload length", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypePiece,
+			Type:    MsgTypePiece,
 			Payload: []byte{0, 0, 0, 5, 0, 0, 0},
 		}
-		out := make([]byte, 20)
-		n, err := ParsePiece(5, out, msg)
+		n, err := ParsePiece(msg)
 		assert.Error(t, err)
-		assert.Equal(t, 0, n)
-	})
-
-	t.Run("begin offset exceeds buffer size", func(t *testing.T) {
-		msg := &Message{
-			ID:      MsgTypePiece,
-			Payload: append([]byte{0, 0, 0, 5, 0, 0, 0, 10}, []byte("piece data")...),
-		}
-		out := make([]byte, 10) // Smaller buffer
-		n, err := ParsePiece(5, out, msg)
-		assert.Error(t, err)
-		assert.Equal(t, 0, n)
+		assert.Nil(t, n)
 	})
 }
 
 func TestParseCancel(t *testing.T) {
 	t.Run("valid cancel message", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeCancel,
+			Type:    MsgTypeCancel,
 			Payload: []byte{0, 0, 0, 5, 0, 0, 0, 10, 0, 0, 0, 15},
 		}
 		index, begin, length, err := ParseCancel(msg)
@@ -219,7 +205,7 @@ func TestParseCancel(t *testing.T) {
 
 	t.Run("invalid cancel message type", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeChoke,
+			Type:    MsgTypeChoke,
 			Payload: []byte{0, 0, 0, 5, 0, 0, 0, 10, 0, 0, 0, 15},
 		}
 		index, begin, length, err := ParseCancel(msg)
@@ -231,7 +217,7 @@ func TestParseCancel(t *testing.T) {
 
 	t.Run("invalid payload length", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeCancel,
+			Type:    MsgTypeCancel,
 			Payload: []byte{0, 0},
 		}
 		index, begin, length, err := ParseCancel(msg)
@@ -246,28 +232,28 @@ func TestNewMessage(t *testing.T) {
 	t.Run("valid choke message", func(t *testing.T) {
 		msg := NewMessage(MessageConf{Type: MsgTypeChoke})
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypeChoke, msg.ID)
+		assert.Equal(t, MsgTypeChoke, msg.Type)
 		assert.Empty(t, msg.Payload)
 	})
 
 	t.Run("valid un-choke message", func(t *testing.T) {
 		msg := NewMessage(MessageConf{Type: MsgTypeUnChoke})
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypeUnChoke, msg.ID)
+		assert.Equal(t, MsgTypeUnChoke, msg.Type)
 		assert.Empty(t, msg.Payload)
 	})
 
 	t.Run("valid interested message", func(t *testing.T) {
 		msg := NewMessage(MessageConf{Type: MsgTypeInterested})
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypeInterested, msg.ID)
+		assert.Equal(t, MsgTypeInterested, msg.Type)
 		assert.Empty(t, msg.Payload)
 	})
 
 	t.Run("valid not-interested message", func(t *testing.T) {
 		msg := NewMessage(MessageConf{Type: MsgTypeNotInterested})
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypeNotInterested, msg.ID)
+		assert.Equal(t, MsgTypeNotInterested, msg.Type)
 		assert.Empty(t, msg.Payload)
 	})
 
@@ -278,7 +264,7 @@ func TestNewMessage(t *testing.T) {
 		}
 		msg := NewMessage(conf)
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypeHave, msg.ID)
+		assert.Equal(t, MsgTypeHave, msg.Type)
 		assert.Equal(t, []byte{0, 0, 0, 10}, msg.Payload)
 	})
 
@@ -290,7 +276,7 @@ func TestNewMessage(t *testing.T) {
 		})
 
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypeBitfield, msg.ID)
+		assert.Equal(t, MsgTypeBitfield, msg.Type)
 		assert.Equal(t, []byte(bitfieldData), msg.Payload)
 	})
 
@@ -303,7 +289,7 @@ func TestNewMessage(t *testing.T) {
 		}
 		msg := NewMessage(conf)
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypeRequest, msg.ID)
+		assert.Equal(t, MsgTypeRequest, msg.Type)
 		expectedPayload := []byte{0, 0, 0, 5, 0, 0, 0, 10, 0, 0, 0, 15}
 		assert.Equal(t, expectedPayload, msg.Payload)
 	})
@@ -321,7 +307,7 @@ func TestNewMessage(t *testing.T) {
 		})
 
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypePiece, MsgType(msg.ID))
+		assert.Equal(t, MsgTypePiece, msg.Type)
 
 		// Validate the structure of the payload: first 8 bytes are index and begin, then the piece data
 		expectedPayload := []byte{0x0, 0x0, 0x0, 0x5, 0x0, 0x0, 0x0, 0xa, 0x1, 0x2, 0x3, 0x4}
@@ -341,7 +327,7 @@ func TestNewMessage(t *testing.T) {
 		})
 
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypeCancel, MsgType(msg.ID))
+		assert.Equal(t, MsgTypeCancel, msg.Type)
 
 		// Validate the payload
 		expectedPayload := []byte{0x0, 0x0, 0x0, 0x5, 0x0, 0x0, 0x0, 0xa, 0x0, 0x0, 0x0, 0xf}
@@ -357,7 +343,7 @@ func TestNewMessage(t *testing.T) {
 		})
 
 		assert.NotNil(t, msg)
-		assert.Equal(t, MsgTypePort, MsgType(msg.ID))
+		assert.Equal(t, MsgTypePort, msg.Type)
 
 		// Validate the port message payload (should be a 2-byte payload for the port)
 		expectedPayload := make([]byte, 2)
@@ -377,7 +363,7 @@ func TestNewMessage(t *testing.T) {
 func TestMessage_String(t *testing.T) {
 	t.Run("valid message string", func(t *testing.T) {
 		msg := &Message{
-			ID:      MsgTypeHave,
+			Type:    MsgTypeHave,
 			Payload: []byte{0, 0, 0, 1},
 		}
 		expected := "message<Have>: <len=4><id=4>"
