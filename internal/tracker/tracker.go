@@ -16,11 +16,13 @@ type Tracker struct {
 	peerID   [20]byte
 	port     uint16
 	torrent  metadata.Metadata
-	progress struct {
-		downloaded int64
-		uploaded   int64
-		remaining  int64
-	}
+	progress Progress
+}
+
+type Progress struct {
+	downloaded uint64
+	uploaded   uint64
+	remaining  uint64
 }
 
 type Response struct {
@@ -39,6 +41,9 @@ func New(peerID [20]byte, port uint16, torrent metadata.Metadata) *Tracker {
 		peerID:  peerID,
 		port:    port,
 		torrent: torrent,
+		progress: Progress{
+			remaining: torrent.Info.Length,
+		},
 	}
 }
 
@@ -49,9 +54,9 @@ func (t *Tracker) URL() string {
 		"info_hash":  []string{string(t.torrent.InfoHash[:])},
 		"peer_id":    []string{string(t.peerID[:])},
 		"port":       []string{strconv.Itoa(int(t.port))},
-		"uploaded":   []string{strconv.FormatInt(t.progress.uploaded, 10)},
-		"downloaded": []string{strconv.FormatInt(t.progress.downloaded, 10)},
-		"left":       []string{strconv.FormatInt(t.progress.remaining, 10)},
+		"uploaded":   []string{strconv.FormatUint(t.progress.uploaded, 10)},
+		"downloaded": []string{strconv.FormatUint(t.progress.downloaded, 10)},
+		"left":       []string{strconv.FormatUint(t.progress.remaining, 10)},
 		"compact":    []string{"1"},
 		"event":      []string{"started"}, // todo: send this as stopped or completed depending on state
 	}
