@@ -42,6 +42,14 @@ func FromMagnet(url string) (*Torrent, error) {
 	return nil, nil
 }
 
+func (t *Torrent) Name() string {
+	return t.metadata.Info.Name
+}
+
+func (t *Torrent) Size() uint64 {
+	return t.metadata.Info.Length
+}
+
 func (t *Torrent) Download(destination io.WriterAt) error {
 	peers, refreshInterval, err := t.tracker.Refresh()
 	if err != nil {

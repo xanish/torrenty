@@ -5,6 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/xanish/torrenty/internal/torrent"
 )
 
 type DownloadFlags struct {
@@ -56,8 +60,30 @@ func processDownload(config *DownloadFlags) error {
 		}
 		defer file.Close()
 
-		// todo: actual download logic here
-		return nil
+		t, err := torrent.FromFile(file)
+		if err != nil {
+			return fmt.Errorf("failed to read torrent file %s: %s", config.TorrentFile, err.Error())
+		}
+
+		config.Destination = filepath.Clean(config.Destination)
+		if !strings.HasSuffix(config.Destination, string(filepath.Separator)) {
+			config.Destination += string(filepath.Separator)
+		}
+
+		out, err := os.Create(config.Destination + t.Name())
+		if err != nil {
+			return fmt.Errorf("could not create output file %s: %w", config.Destination, err)
+		}
+		defer func(out *os.File) {
+			_ = out.Close()
+		}(out)
+
+		err = out.Truncate(int64(t.Size()))
+		if err != nil {
+			return fmt.Errorf("could not allocate %d bytes for file %s: %w", t.Size(), file, err)
+		}
+
+		return t.Download(out)
 	}
 
 	// todo: actual download logic for magnet link here
