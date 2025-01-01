@@ -197,34 +197,26 @@ func ParseRequest(msg *Message) (int, int, int, error) {
 	return parsedIndex, parsedBegin, parsedLength, nil
 }
 
-func ParsePiece(index int, out []byte, msg *Message) (int, error) {
+type Piece struct {
+	Index uint32
+	Start uint32
+	Data  []byte
+}
+
+func ParsePiece(msg *Message) (*Piece, error) {
 	if msg.Type != MsgTypePiece {
-		return 0, fmt.Errorf("expected message<piece> but got %s", msg)
+		return nil, fmt.Errorf("expected message<piece> but got %s", msg)
 	}
 
 	if len(msg.Payload) < 8 {
-		return 0, fmt.Errorf("expected payload to have at-least 8 bytes, got %d", len(msg.Payload))
+		return nil, fmt.Errorf("expected payload to have at-least 8 bytes, got %d", len(msg.Payload))
 	}
 
-	parsedIndex := int(binary.BigEndian.Uint32(msg.Payload[0:4]))
-	if parsedIndex != index {
-		return 0, fmt.Errorf("expected piece index %d, got %d", index, parsedIndex)
-	}
-
-	begin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
-	if begin >= len(out) {
-		return 0, fmt.Errorf("expected begin offset %d, got %d", begin, len(out))
-	}
-
-	data := msg.Payload[8:]
-	fmt.Println(begin, begin+len(data), len(out))
-	if begin+len(data) > len(out) {
-		return 0, fmt.Errorf("expected data size to be %d bytes, got %d bytes", len(out), len(data))
-	}
-
-	copy(out[begin:], data)
-
-	return len(data), nil
+	return &Piece{
+		Index: binary.BigEndian.Uint32(msg.Payload[0:4]),
+		Start: binary.BigEndian.Uint32(msg.Payload[4:8]),
+		Data:  msg.Payload[8:],
+	}, nil
 }
 
 func ParseCancel(msg *Message) (int, int, int, error) {
