@@ -42,7 +42,7 @@ type Message struct {
 	Payload []byte
 }
 
-func (m *Message) name() string {
+func (m *Message) Name() string {
 	if m == nil {
 		return "KeepAlive"
 	}
@@ -73,6 +73,14 @@ func (m *Message) Marshal() []byte {
 	return buf
 }
 
+func (m *Message) String() string {
+	if m == nil {
+		return m.Name()
+	}
+
+	return fmt.Sprintf("message<%s>: <len=%d><id=%d>", m.Name(), len(m.Payload), m.Type)
+}
+
 func UnmarshalMessage(r io.Reader) (*Message, error) {
 	lengthBuf := make([]byte, 4)
 	_, err := io.ReadFull(r, lengthBuf)
@@ -98,73 +106,65 @@ func UnmarshalMessage(r io.Reader) (*Message, error) {
 	}, nil
 }
 
-func (m *Message) String() string {
-	if m == nil {
-		return m.name()
-	}
-
-	return fmt.Sprintf("message<%s>: <len=%d><id=%d>", m.name(), len(m.Payload), m.Type)
+func NewChokeMessage() *Message {
+	return &Message{Type: MsgTypeChoke}
 }
 
-type MessageConf struct {
-	Type       MsgType
-	Bitfield   bitfield.Bitfield
-	PieceIndex uint32
-	Piece      []byte
-	Begin      uint32
-	Length     uint32
-	Port       uint16
+func NewUnChokeMessage() *Message {
+	return &Message{Type: MsgTypeUnChoke}
 }
 
-func NewMessage(conf MessageConf) *Message {
-	switch conf.Type {
-	case MsgTypeChoke:
-		return &Message{Type: MsgTypeChoke}
-	case MsgTypeUnChoke:
-		return &Message{Type: MsgTypeUnChoke}
-	case MsgTypeInterested:
-		return &Message{Type: MsgTypeInterested}
-	case MsgTypeNotInterested:
-		return &Message{Type: MsgTypeNotInterested}
-	case MsgTypeHave:
-		payload := make([]byte, 4)
-		binary.BigEndian.PutUint32(payload, conf.PieceIndex)
+func NewInterestedMessage() *Message {
+	return &Message{Type: MsgTypeInterested}
+}
 
-		return &Message{Type: MsgTypeHave, Payload: payload}
-	case MsgTypeBitfield:
-		return &Message{Type: MsgTypeBitfield, Payload: conf.Bitfield}
-	case MsgTypeRequest:
-		payload := make([]byte, 12)
-		binary.BigEndian.PutUint32(payload[0:4], conf.PieceIndex)
-		binary.BigEndian.PutUint32(payload[4:8], conf.Begin)
-		binary.BigEndian.PutUint32(payload[8:12], conf.Length)
+func NewNotInterestedMessage() *Message {
+	return &Message{Type: MsgTypeNotInterested}
+}
 
-		return &Message{Type: MsgTypeRequest, Payload: payload}
-	case MsgTypePiece:
-		payload := &bytes.Buffer{}
-		temp := make([]byte, 8)
-		binary.BigEndian.PutUint32(temp[0:4], conf.PieceIndex)
-		binary.BigEndian.PutUint32(temp[4:8], conf.Begin)
+func NewHaveMessage(pieceIndex uint32) *Message {
+	payload := make([]byte, 4)
+	binary.BigEndian.PutUint32(payload, pieceIndex)
 
-		payload.Write(temp)
-		payload.Write(conf.Piece)
+	return &Message{Type: MsgTypeHave, Payload: payload}
+}
 
-		return &Message{Type: MsgTypePiece, Payload: payload.Bytes()}
-	case MsgTypeCancel:
-		payload := make([]byte, 12)
-		binary.BigEndian.PutUint32(payload[0:4], conf.PieceIndex)
-		binary.BigEndian.PutUint32(payload[4:8], conf.Begin)
-		binary.BigEndian.PutUint32(payload[8:12], conf.Length)
+func NewBitfieldMessage(bf bitfield.Bitfield) *Message {
+	return &Message{Type: MsgTypeBitfield, Payload: bf}
+}
 
-		return &Message{Type: MsgTypeCancel, Payload: payload}
-	case MsgTypePort:
-		payload := make([]byte, 2)
-		binary.BigEndian.PutUint16(payload, conf.Port)
+func NewRequestMessage(pieceIndex, begin, length uint32) *Message {
+	payload := make([]byte, 12)
+	binary.BigEndian.PutUint32(payload[0:4], pieceIndex)
+	binary.BigEndian.PutUint32(payload[4:8], begin)
+	binary.BigEndian.PutUint32(payload[8:12], length)
 
-		return &Message{Type: MsgTypePort, Payload: payload}
-	}
+	return &Message{Type: MsgTypeRequest, Payload: payload}
+}
 
-	return nil
+func NewPieceMessage(pieceIndex, begin uint32, piece []byte) *Message {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, pieceIndex)
+	binary.Write(buf, binary.BigEndian, begin)
+	buf.Write(piece)
+
+	return &Message{Type: MsgTypePiece, Payload: buf.Bytes()}
+}
+
+func NewCancelMessage(pieceIndex, begin, length uint32) *Message {
+	payload := make([]byte, 12)
+	binary.BigEndian.PutUint32(payload[0:4], pieceIndex)
+	binary.BigEndian.PutUint32(payload[4:8], begin)
+	binary.BigEndian.PutUint32(payload[8:12], length)
+
+	return &Message{Type: MsgTypeCancel, Payload: payload}
+}
+
+func NewPortMessage(port uint16) *Message {
+	payload := make([]byte, 2)
+	binary.BigEndian.PutUint16(payload, port)
+
+	return &Message{Type: MsgTypePort, Payload: payload}
 }
 
 func ParseHave(msg *Message) (uint32, error) {

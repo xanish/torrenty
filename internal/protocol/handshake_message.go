@@ -6,8 +6,6 @@ import (
 	"io"
 )
 
-const bufLength = 49
-
 type Handshake struct {
 	Pstr     string
 	Reserved [8]byte
@@ -18,35 +16,20 @@ type Handshake struct {
 func NewHandshake(infoHash, peerID [20]byte) Handshake {
 	return Handshake{
 		Pstr:     "BitTorrent protocol",
-		Reserved: [8]byte{0x00, 0x00, 0x00, 0x00},
+		Reserved: [8]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		InfoHash: infoHash,
 		PeerID:   peerID,
 	}
 }
 
 func (h *Handshake) Marshal() ([]byte, error) {
-	errs := make([]error, 0, 5)
-	buf := bytes.NewBuffer(make([]byte, 0, bufLength+len(h.Pstr)))
+	buf := new(bytes.Buffer)
 
-	errs = append(errs, buf.WriteByte(byte(len(h.Pstr))))
-
-	_, err := buf.WriteString(h.Pstr)
-	errs = append(errs, err)
-
-	_, err = buf.Write(h.Reserved[:])
-	errs = append(errs, err)
-
-	_, err = buf.Write(h.InfoHash[:])
-	errs = append(errs, err)
-
-	_, err = buf.Write(h.PeerID[:])
-	errs = append(errs, err)
-
-	for _, err := range errs {
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal handshake payload: %w", err)
-		}
-	}
+	buf.WriteByte(byte(len(h.Pstr)))
+	buf.WriteString(h.Pstr)
+	buf.Write(h.Reserved[:])
+	buf.Write(h.InfoHash[:])
+	buf.Write(h.PeerID[:])
 
 	return buf.Bytes(), nil
 }

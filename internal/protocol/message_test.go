@@ -31,14 +31,14 @@ func TestMessage_Name(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				msg := &Message{Type: tt.msgID}
-				assert.Equal(t, tt.name, msg.name())
+				assert.Equal(t, tt.name, msg.Name())
 			})
 		}
 	})
 
 	t.Run("nil message", func(t *testing.T) {
 		var msg *Message
-		assert.Equal(t, "KeepAlive", msg.name())
+		assert.Equal(t, "KeepAlive", msg.Name())
 	})
 }
 
@@ -230,39 +230,35 @@ func TestParseCancel(t *testing.T) {
 
 func TestNewMessage(t *testing.T) {
 	t.Run("valid choke message", func(t *testing.T) {
-		msg := NewMessage(MessageConf{Type: MsgTypeChoke})
+		msg := NewChokeMessage()
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypeChoke, msg.Type)
 		assert.Empty(t, msg.Payload)
 	})
 
 	t.Run("valid un-choke message", func(t *testing.T) {
-		msg := NewMessage(MessageConf{Type: MsgTypeUnChoke})
+		msg := NewUnChokeMessage()
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypeUnChoke, msg.Type)
 		assert.Empty(t, msg.Payload)
 	})
 
 	t.Run("valid interested message", func(t *testing.T) {
-		msg := NewMessage(MessageConf{Type: MsgTypeInterested})
+		msg := NewInterestedMessage()
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypeInterested, msg.Type)
 		assert.Empty(t, msg.Payload)
 	})
 
 	t.Run("valid not-interested message", func(t *testing.T) {
-		msg := NewMessage(MessageConf{Type: MsgTypeNotInterested})
+		msg := NewNotInterestedMessage()
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypeNotInterested, msg.Type)
 		assert.Empty(t, msg.Payload)
 	})
 
 	t.Run("valid have message", func(t *testing.T) {
-		conf := MessageConf{
-			Type:       MsgTypeHave,
-			PieceIndex: 10,
-		}
-		msg := NewMessage(conf)
+		msg := NewHaveMessage(10)
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypeHave, msg.Type)
 		assert.Equal(t, []byte{0, 0, 0, 10}, msg.Payload)
@@ -270,10 +266,7 @@ func TestNewMessage(t *testing.T) {
 
 	t.Run("create bitfield message", func(t *testing.T) {
 		bitfieldData := bitfield.Bitfield{0x01, 0x02, 0x03}
-		msg := NewMessage(MessageConf{
-			Type:     MsgTypeBitfield,
-			Bitfield: bitfieldData,
-		})
+		msg := NewBitfieldMessage(bitfieldData)
 
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypeBitfield, msg.Type)
@@ -281,13 +274,7 @@ func TestNewMessage(t *testing.T) {
 	})
 
 	t.Run("valid request message", func(t *testing.T) {
-		conf := MessageConf{
-			Type:       MsgTypeRequest,
-			PieceIndex: 5,
-			Begin:      10,
-			Length:     15,
-		}
-		msg := NewMessage(conf)
+		msg := NewRequestMessage(5, 10, 15)
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypeRequest, msg.Type)
 		expectedPayload := []byte{0, 0, 0, 5, 0, 0, 0, 10, 0, 0, 0, 15}
@@ -299,12 +286,7 @@ func TestNewMessage(t *testing.T) {
 		begin := uint32(10)
 		pieceData := []byte{0x01, 0x02, 0x03, 0x04}
 
-		msg := NewMessage(MessageConf{
-			Type:       MsgTypePiece,
-			PieceIndex: pieceIndex,
-			Begin:      begin,
-			Piece:      pieceData,
-		})
+		msg := NewPieceMessage(pieceIndex, begin, pieceData)
 
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypePiece, msg.Type)
@@ -319,12 +301,7 @@ func TestNewMessage(t *testing.T) {
 		begin := uint32(10)
 		length := uint32(15)
 
-		msg := NewMessage(MessageConf{
-			Type:       MsgTypeCancel,
-			PieceIndex: pieceIndex,
-			Begin:      begin,
-			Length:     length,
-		})
+		msg := NewCancelMessage(pieceIndex, begin, length)
 
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypeCancel, msg.Type)
@@ -336,11 +313,7 @@ func TestNewMessage(t *testing.T) {
 
 	t.Run("create port message", func(t *testing.T) {
 		port := uint16(6881) // Example port number
-
-		msg := NewMessage(MessageConf{
-			Type: MsgTypePort,
-			Port: port,
-		})
+		msg := NewPortMessage(port)
 
 		assert.NotNil(t, msg)
 		assert.Equal(t, MsgTypePort, msg.Type)
@@ -349,14 +322,6 @@ func TestNewMessage(t *testing.T) {
 		expectedPayload := make([]byte, 2)
 		binary.BigEndian.PutUint16(expectedPayload, port)
 		assert.Equal(t, expectedPayload, msg.Payload)
-	})
-
-	t.Run("invalid message type", func(t *testing.T) {
-		conf := MessageConf{
-			Type: MsgType(100), // Invalid type
-		}
-		msg := NewMessage(conf)
-		assert.Nil(t, msg)
 	})
 }
 

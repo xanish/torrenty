@@ -64,12 +64,7 @@ func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) erro
 				adjustedBlockSize = piece.size - ((numBlocks - 1) * downloadBlockSize)
 			}
 
-			err := pw.peer.Send(protocol.MessageConf{
-				Type:       protocol.MsgTypeRequest,
-				PieceIndex: piece.index,
-				Begin:      i * downloadBlockSize,
-				Length:     adjustedBlockSize,
-			})
+			err := pw.peer.Send(protocol.NewRequestMessage(piece.index, i*downloadBlockSize, adjustedBlockSize))
 			if err != nil {
 				// Something went wrong while requesting for current piece, just
 				// add it to backlog and try later
@@ -123,7 +118,7 @@ func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) erro
 		}
 
 		// Inform the peer that we received the message
-		err = pw.peer.Send(protocol.MessageConf{Type: protocol.MsgTypeHave, PieceIndex: piece.index})
+		err = pw.peer.Send(protocol.NewHaveMessage(piece.index))
 		if err != nil {
 			return fmt.Errorf("failed to send message have to peer %s: %v", pw.peer.String(), err)
 		}

@@ -13,12 +13,14 @@ import (
 const peerNumBytes = 6 // 4 bytes for IP, 2 bytes for port
 
 type Peer struct {
-	ip           net.IP
-	port         uint16
-	conn         protocol.Connection
-	bitfield     bitfield.Bitfield
-	amChoked     bool
-	amInterested bool
+	ip             net.IP
+	port           uint16
+	conn           protocol.Connection
+	bitfield       bitfield.Bitfield
+	amChoked       bool // we are choked by the remote peer
+	amInterested   bool // we are interested in the remote peer
+	peerChoked     bool // the remote peer is choked by us
+	peerInterested bool // the remote peer is interested in us
 }
 
 func New(encodedPeers string) ([]Peer, error) {
@@ -33,8 +35,12 @@ func New(encodedPeers string) ([]Peer, error) {
 	for i := 0; i < numPeers; i++ {
 		offset := i * peerNumBytes
 		peers = append(peers, Peer{
-			ip:   peerBytes[offset : offset+4],
-			port: binary.BigEndian.Uint16(peerBytes[offset+4 : offset+6]),
+			ip:             peerBytes[offset : offset+4],
+			port:           binary.BigEndian.Uint16(peerBytes[offset+4 : offset+6]),
+			amChoked:       true,
+			amInterested:   false,
+			peerChoked:     true,
+			peerInterested: false,
 		})
 	}
 
@@ -42,15 +48,24 @@ func New(encodedPeers string) ([]Peer, error) {
 }
 
 func (p *Peer) Connect(peerID, infoHash [20]byte) error {
-	conn, err := protocol.NewConnection(p.String(), peerID, infoHash)
+	conn, err := protocol.NewConnection(p.String())
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create connection to peer %s:%d: %s", p.ip, p.port, err)
 	}
-	p.conn = *conn
+
+	p.conn = conn
+	err = p.conn.Handshake(peerID, infoHash)
+	if err != nil {
+		return fmt.Errorf("handshake failed: %s", err)
+	}
 
 	msg, err := p.conn.ReadMessage()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not read message after handshake: %s", err)
+	}
+
+	if msg.Type != protocol.MsgTypeBitfield {
+		return fmt.Errorf("expected bitfield message after handshake, got %v", msg.Name())
 	}
 
 	_, err = p.parseMessage(msg)
@@ -65,9 +80,9 @@ func (p *Peer) parseMessage(msg *protocol.Message) (*protocol.Piece, error) {
 	case protocol.MsgTypeUnChoke:
 		p.amChoked = false
 	case protocol.MsgTypeInterested:
-		p.amInterested = true
+		p.peerInterested = true
 	case protocol.MsgTypeNotInterested:
-		p.amInterested = false
+		p.peerInterested = false
 	case protocol.MsgTypeHave:
 		index, err := protocol.ParseHave(msg)
 		if err != nil {
@@ -98,22 +113,36 @@ func (p *Peer) parseMessage(msg *protocol.Message) (*protocol.Piece, error) {
 }
 
 func (p *Peer) Close() error {
-	return p.conn.Close()
+	if !p.conn.IsClosed() {
+		return p.conn.Close()
+	}
+
+	return nil
 }
 
 func (p *Peer) HasPiece(index uint32) bool { return p.bitfield.HasPiece(index) }
 
-func (p *Peer) Send(msg protocol.MessageConf) error {
-	return p.conn.SendMessage(protocol.NewMessage(msg))
+func (p *Peer) Send(msg *protocol.Message) error {
+	err := p.conn.SendMessage(msg)
+	if err != nil {
+		return err
+	}
+
+	if msg.Type == protocol.MsgTypeChoke {
+		p.peerChoked = true
+	} else if msg.Type == protocol.MsgTypeUnChoke {
+		p.peerChoked = false
+	} else if msg.Type == protocol.MsgTypeInterested {
+		p.amInterested = true
+	} else if msg.Type == protocol.MsgTypeNotInterested {
+		p.amInterested = false
+	}
+
+	return nil
 }
 
 func (p *Peer) Receive() (*protocol.Message, error) {
-	resp, err := p.conn.ReadMessage()
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return p.conn.ReadMessage()
 }
 
 func (p *Peer) String() string {
