@@ -42,7 +42,7 @@ func TestWorkerPool(t *testing.T) {
 		worker.On("DoWork", mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
 
 		wp := New([]Worker[int, string]{worker}, jobs, results)
-		go wp.Start()
+		go wp.DoWork()
 
 		jobs <- 1
 		jobs <- 2
@@ -67,7 +67,7 @@ func TestWorkerPool(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		go func() {
-			wp.Start()
+			wp.DoWork()
 			wg.Done()
 		}()
 
@@ -97,7 +97,7 @@ func TestWorkerPool(t *testing.T) {
 		wg.Add(1)
 
 		go func() {
-			wp.Start()
+			wp.DoWork()
 			wg.Done()
 		}()
 

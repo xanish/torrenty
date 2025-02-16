@@ -12,6 +12,7 @@ type WorkerPool[T, U any] struct {
 	workers []Worker[T, U]
 	jobs    chan T
 	results chan<- U
+	wg      *sync.WaitGroup
 }
 
 func New[T, U any](workers []Worker[T, U], jobs chan T, results chan<- U) WorkerPool[T, U] {
@@ -22,13 +23,12 @@ func New[T, U any](workers []Worker[T, U], jobs chan T, results chan<- U) Worker
 	}
 }
 
-func (wp WorkerPool[T, U]) Start() {
-	wg := sync.WaitGroup{}
-	wg.Add(len(wp.workers))
+func (wp WorkerPool[T, U]) DoWork() {
+	wp.wg.Add(len(wp.workers))
 
 	for _, worker := range wp.workers {
 		go func(w Worker[T, U]) {
-			defer wg.Done()
+			defer wp.wg.Done()
 			err := w.DoWork(wp.jobs, wp.results)
 			if err != nil {
 				return
@@ -36,6 +36,6 @@ func (wp WorkerPool[T, U]) Start() {
 		}(worker)
 	}
 
-	wg.Wait()
+	wp.wg.Wait()
 	close(wp.results)
 }

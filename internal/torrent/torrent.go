@@ -81,7 +81,7 @@ func (t *Torrent) Download(destination io.WriterAt) error {
 	}
 
 	pool := workerpool.New(workers, jobs, done)
-	pool.Start()
+	pool.DoWork()
 
 	donePieces := 0
 	for donePieces < len(t.metadata.Info.PieceList) {
