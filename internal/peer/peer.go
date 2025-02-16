@@ -107,13 +107,13 @@ func (p *Peer) Send(msg protocol.MessageConf) error {
 	return p.conn.SendMessage(protocol.NewMessage(msg))
 }
 
-func (p *Peer) Read() ([]byte, error) {
+func (p *Peer) Receive() (*protocol.Message, error) {
 	resp, err := p.conn.ReadMessage()
 	if err != nil {
 		return nil, err
 	}
 
-	return resp.Payload, nil
+	return resp, nil
 }
 
 func (p *Peer) String() string {

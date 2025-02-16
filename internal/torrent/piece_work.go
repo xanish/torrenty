@@ -40,12 +40,17 @@ func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) erro
 	if err != nil {
 		return fmt.Errorf("failed to connect to peer %s: %v", pw.peer.String(), err)
 	}
+	defer pw.peer.Close()
 
 	for piece := range jobs {
 		// Peer does not have this piece so move on to find the next piece from
 		// this peer which we can download
 		if !pw.peer.HasPiece(piece.index) {
-			requeueWork(piece, jobs)
+			isChanClosed := requeueWork(piece, jobs)
+			if isChanClosed {
+				return nil
+			}
+
 			continue
 		}
 
@@ -68,19 +73,38 @@ func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) erro
 			if err != nil {
 				// Something went wrong while requesting for current piece, just
 				// add it to backlog and try later
-				requeueWork(piece, jobs)
+				isChanClosed := requeueWork(piece, jobs)
+				if isChanClosed {
+					return nil
+				}
 
 				break
 			}
 
-			piece.result, err = pw.peer.Read()
+			msg, err := pw.peer.Receive()
 			if err != nil {
-				requeueWork(piece, jobs)
+				isChanClosed := requeueWork(piece, jobs)
+				if isChanClosed {
+					return nil
+				}
 
 				// Break out of the loop here to allow worker to download the
 				// next available piece from this peer
 				break
 			}
+
+			if msg.Type != protocol.MsgTypePiece {
+				isChanClosed := requeueWork(piece, jobs)
+				if isChanClosed {
+					return nil
+				}
+
+				// Break out of the loop here to allow worker to download the
+				// next available piece from this peer
+				break
+			}
+
+			copy(piece.result[i*downloadBlockSize:], msg.Payload)
 		}
 
 		// check piece integrity
@@ -88,7 +112,11 @@ func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) erro
 		if !bytes.Equal(hash[:], piece.hash[:]) {
 			// Hash for the piece did not match so we requeue it and download
 			// it later
-			requeueWork(piece, jobs)
+			isChanClosed := requeueWork(piece, jobs)
+			if isChanClosed {
+				return nil
+			}
+
 			continue
 		} else {
 			results <- piece
