@@ -30,7 +30,7 @@ func TestTracker(t *testing.T) {
 
 	t.Run("generate correct url", func(t *testing.T) {
 		tracker := New(peerID, port, torrent)
-		url := tracker.URL()
+		url := tracker.URL("started")
 
 		expectedURL := "https://torrent.ubuntu.com/announce?compact=1&downloaded=0&event=started&info_hash=%C9k%2A%9B%A9%ED%1B%D2X%2Cx%5D%A8%A8o%2C%D5Q%7C%07&left=0&peer_id=%00%01%02%03%04%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00&port=6881&uploaded=0"
 		assert.Equal(t, expectedURL, url)
@@ -67,7 +67,7 @@ func TestTracker(t *testing.T) {
 		// Update tracker to use the test server URL
 		torrent.Announce = server.URL
 		tracker := New(peerID, port, torrent)
-		peers, duration, err := tracker.Refresh()
+		peers, duration, err := tracker.Refresh("started")
 
 		assert.NoError(t, err)
 		assert.NotNil(t, peers)
@@ -90,7 +90,7 @@ func TestTracker(t *testing.T) {
 		// Update tracker to use the test server URL
 		torrent.Announce = server.URL
 		tracker := New(peerID, port, torrent)
-		peers, duration, err := tracker.Refresh()
+		peers, duration, err := tracker.Refresh("started")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "tracker returned an error")
@@ -112,7 +112,7 @@ func TestTracker(t *testing.T) {
 		// Update tracker to use the test server URL
 		torrent.Announce = server.URL
 		tracker := New(peerID, port, torrent)
-		peers, duration, err := tracker.Refresh()
+		peers, duration, err := tracker.Refresh("started")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to decode tracker response")

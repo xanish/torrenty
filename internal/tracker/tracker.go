@@ -47,7 +47,7 @@ func New(peerID [20]byte, port uint16, torrent metadata.Metadata) *Tracker {
 	}
 }
 
-func (t *Tracker) URL() string {
+func (t *Tracker) URL(event string) string {
 	baseUrl, _ := url.Parse(t.torrent.Announce)
 
 	params := url.Values{
@@ -58,7 +58,7 @@ func (t *Tracker) URL() string {
 		"downloaded": []string{strconv.FormatUint(t.progress.downloaded, 10)},
 		"left":       []string{strconv.FormatUint(t.progress.remaining, 10)},
 		"compact":    []string{"1"},
-		"event":      []string{"started"}, // todo: send this as stopped or completed depending on state
+		"event":      []string{event},
 	}
 
 	baseUrl.RawQuery = params.Encode()
@@ -66,11 +66,11 @@ func (t *Tracker) URL() string {
 	return baseUrl.String()
 }
 
-func (t *Tracker) Refresh() ([]peer.Peer, time.Duration, error) {
+func (t *Tracker) Refresh(event string) ([]peer.Peer, time.Duration, error) {
 	c := &http.Client{Timeout: 10 * time.Second}
-	tracker := t.URL()
+	trackerURL := t.URL(event)
 
-	resp, err := c.Get(tracker)
+	resp, err := c.Get(trackerURL)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch tracker metadata: %w", err)
 	}
@@ -95,5 +95,10 @@ func (t *Tracker) Refresh() ([]peer.Peer, time.Duration, error) {
 		return nil, 0, fmt.Errorf("failed to parse peers from tracker response: %w", err)
 	}
 
-	return peers, time.Duration(trackerResp.Interval) * time.Second, nil
+	interval := time.Duration(trackerResp.Interval) * time.Second
+	if interval == 0 && trackerResp.MinInterval > 0 {
+		interval = time.Duration(trackerResp.MinInterval) * time.Second
+	}
+
+	return peers, interval, nil
 }

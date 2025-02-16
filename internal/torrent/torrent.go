@@ -51,7 +51,7 @@ func (t *Torrent) Size() uint64 {
 }
 
 func (t *Torrent) Download(destination io.WriterAt) error {
-	peers, refreshInterval, err := t.tracker.Refresh()
+	peers, refreshInterval, err := t.tracker.Refresh("started")
 	if err != nil {
 		return fmt.Errorf("failed to refresh tracker metadata: %w", err)
 	}
