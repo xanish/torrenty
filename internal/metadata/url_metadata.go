@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -23,25 +24,33 @@ func (ml *MagnetLink) asMetadata() *Metadata {
 		announceList = append(announceList, []string{tracker})
 	}
 
-	return &Metadata{
+	m := &Metadata{
 		Info: PieceInfo{
 			Name:   ml.DisplayName,
 			Length: ml.Length,
 		},
-		InfoHash:     [20]byte([]byte(ml.InfoHash)),
-		Announce:     ml.Trackers[0],
 		AnnounceList: announceList,
 	}
+
+	if len(ml.Trackers) > 0 {
+		m.Announce = ml.Trackers[0]
+	}
+
+	if len(ml.InfoHash) >= 20 {
+		copy(m.InfoHash[:], ml.InfoHash[:20])
+	}
+
+	return m
 }
 
 func FromURL(magnet string) (*Metadata, error) {
 	parsed, err := url.Parse(magnet)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse magnet URL: %w", err)
 	}
 
 	if parsed.Scheme != "magnet" {
-		return nil, errors.New("invalid magnet URL")
+		return nil, errors.New("invalid magnet URL scheme")
 	}
 
 	ml := MagnetLink{}

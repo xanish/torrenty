@@ -45,8 +45,11 @@ func (pi PieceInfo) hash() ([20]byte, error) {
 }
 
 func (pi PieceInfo) splitPieces() ([][20]byte, error) {
-	hashLength := 20
+	if pi.Pieces == "" {
+		return nil, nil
+	}
 
+	hashLength := 20
 	buf := []byte(pi.Pieces)
 	if len(buf)%hashLength != 0 {
 		return nil, fmt.Errorf("received malformed pieces from tracker")
@@ -71,16 +74,16 @@ func FromFile(r io.Reader) (*Metadata, error) {
 	m := Metadata{}
 	err := bencode.Unmarshal(r, &m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
 
 	if m.Announce == "" && len(m.AnnounceList) == 0 {
-		return nil, errors.New("file does not contain any announces")
+		return nil, errors.New("torrent file does not contain any announces")
 	}
 
 	if m.Announce == "" && len(m.AnnounceList) > 0 {
 		if len(m.AnnounceList[0]) != 1 {
-			return nil, errors.New("file does not contain any announces")
+			return nil, errors.New("torrent file does not contain any announces")
 		}
 		m.Announce = m.AnnounceList[0][0]
 	}
@@ -91,15 +94,15 @@ func FromFile(r io.Reader) (*Metadata, error) {
 	}
 
 	if m.Info.Name == "" {
-		return nil, errors.New("file does not contain any files to download")
+		return nil, errors.New("torrent file does not contain any files to download")
 	}
 
 	if m.Info.PieceLength == 0 {
-		return nil, errors.New("file does not contain any piece length")
+		return nil, errors.New("torrent file does not contain any piece length")
 	}
 
 	if m.Info.Pieces == "" {
-		return nil, errors.New("file does not contain any pieces")
+		return nil, errors.New("torrent file does not contain any pieces")
 	}
 
 	m.Info.PieceList, err = m.Info.splitPieces()
