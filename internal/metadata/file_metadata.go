@@ -30,21 +30,10 @@ type PieceInfo struct {
 	Files       []File `bencode:"files,omitempty"`
 	PieceLength uint32 `bencode:"piece length"`
 	Pieces      string `bencode:"pieces"`
-	PieceList   [][20]byte
-	Private     uint8 `bencode:"private,omitempty"`
+	Private     uint8  `bencode:"private,omitempty"`
 }
 
-func (pi PieceInfo) hash() ([20]byte, error) {
-	var encoded bytes.Buffer
-	err := bencode.Marshal(&encoded, pi)
-	if err != nil {
-		return [20]byte{}, fmt.Errorf("failed to encode piece info: %w", err)
-	}
-
-	return sha1.Sum(encoded.Bytes()), nil
-}
-
-func (pi PieceInfo) splitPieces() ([][20]byte, error) {
+func (pi PieceInfo) PieceList() ([][20]byte, error) {
 	if pi.Pieces == "" {
 		return nil, nil
 	}
@@ -62,6 +51,16 @@ func (pi PieceInfo) splitPieces() ([][20]byte, error) {
 	}
 
 	return hashes, nil
+}
+
+func (pi PieceInfo) hash() ([20]byte, error) {
+	var encoded bytes.Buffer
+	err := bencode.Marshal(&encoded, pi)
+	if err != nil {
+		return [20]byte{}, fmt.Errorf("failed to encode piece info: %w", err)
+	}
+
+	return sha1.Sum(encoded.Bytes()), nil
 }
 
 type File struct {
@@ -103,11 +102,6 @@ func FromFile(r io.Reader) (*Metadata, error) {
 
 	if m.Info.Pieces == "" {
 		return nil, errors.New("torrent file does not contain any pieces")
-	}
-
-	m.Info.PieceList, err = m.Info.splitPieces()
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse pieces: %w", err)
 	}
 
 	m.InfoHash, err = m.Info.hash()

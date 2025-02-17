@@ -71,7 +71,12 @@ func (t *Torrent) Download(destination io.WriterAt) error {
 		close(done)
 	}()
 
-	for index, hash := range t.metadata.Info.PieceList {
+	pieces, err := t.metadata.Info.PieceList()
+	if err != nil {
+		return fmt.Errorf("failed to split and parse pieces: %w", err)
+	}
+
+	for index, hash := range pieces {
 		pieceSize := t.metadata.Info.PieceLength
 		numPieces := int(math.Ceil(float64(t.metadata.Info.Length) / float64(pieceSize)))
 		if index == numPieces-1 {
@@ -84,7 +89,7 @@ func (t *Torrent) Download(destination io.WriterAt) error {
 	pool.DoWork()
 
 	donePieces := 0
-	for donePieces < len(t.metadata.Info.PieceList) {
+	for donePieces < len(pieces) {
 		res := <-done
 		offset := int64(res.index * t.metadata.Info.PieceLength)
 		_, err := destination.WriteAt(res.result, offset)
