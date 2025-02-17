@@ -3,6 +3,7 @@ package peer
 import (
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"net"
 	"strconv"
 
@@ -48,6 +49,8 @@ func New(encodedPeers string) ([]Peer, error) {
 }
 
 func (p *Peer) Connect(peerID, infoHash [20]byte) error {
+	slog.Debug("Connecting to peer", slog.String("peer", p.String()))
+
 	conn, err := protocol.NewConnection(p.String())
 	if err != nil {
 		return fmt.Errorf("could not create connection to peer %s:%d: %s", p.ip, p.port, err)
@@ -58,6 +61,8 @@ func (p *Peer) Connect(peerID, infoHash [20]byte) error {
 	if err != nil {
 		return fmt.Errorf("handshake failed: %s", err)
 	}
+
+	slog.Info("Handshake completed with peer", slog.String("peer", p.String()))
 
 	msg, err := p.conn.ReadMessage()
 	if err != nil {
@@ -77,36 +82,60 @@ func (p *Peer) parseMessage(msg *protocol.Message) (*protocol.Piece, error) {
 	switch msg.Type {
 	case protocol.MsgTypeChoke:
 		p.amChoked = true
+		slog.Debug("Received CHOKE message from peer", slog.String("peer", p.String()))
 	case protocol.MsgTypeUnChoke:
 		p.amChoked = false
+		slog.Debug("Received UNCHOKE message from peer", slog.String("peer", p.String()))
 	case protocol.MsgTypeInterested:
 		p.peerInterested = true
+		slog.Debug("Received INTERESTED message from peer", slog.String("peer", p.String()))
 	case protocol.MsgTypeNotInterested:
 		p.peerInterested = false
+		slog.Debug("Received NOT INTERESTED message from peer", slog.String("peer", p.String()))
 	case protocol.MsgTypeHave:
 		index, err := protocol.ParseHave(msg)
 		if err != nil {
 			return nil, err
 		}
 		p.bitfield.SetPiece(index)
+		slog.Debug(
+			"Received HAVE message from peer",
+			slog.String("peer", p.String()),
+			slog.Int("piece_index", int(index)),
+		)
 	case protocol.MsgTypeBitfield:
 		p.bitfield = msg.Payload
+		slog.Debug(
+			"Received BITFIELD message from peer",
+			slog.String("peer", p.String()),
+			slog.Int("bitfield_length", len(p.bitfield)),
+		)
 	case protocol.MsgTypeRequest:
 		_, _, _, err := protocol.ParseRequest(msg)
 		if err != nil {
 			return nil, err
 		}
+		slog.Debug("Received REQUEST message from peer", slog.String("peer", p.String()))
 	case protocol.MsgTypePiece:
 		piece, err := protocol.ParsePiece(msg)
 		if err != nil {
 			return nil, err
 		}
 
+		slog.Debug(
+			"Received PIECE message from peer",
+			slog.String("peer", p.String()),
+			slog.Int("piece_index", int(piece.Index)),
+			slog.Int("block_offset", int(piece.Start)),
+			slog.Int("block_length", len(piece.Data)),
+		)
 		return piece, nil
 	case protocol.MsgTypeCancel:
 		// todo: add logic
+		slog.Debug("Received CANCEL message from peer", slog.String("peer", p.String()))
 	case protocol.MsgTypePort:
 		// todo: add logic
+		slog.Debug("Received PORT message from peer", slog.String("peer", p.String()))
 	}
 
 	return nil, nil

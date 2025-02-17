@@ -4,22 +4,35 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/xanish/torrenty/internal/torrent"
 )
 
 func main() {
 	config := parseFlags()
+
+	logFile, err := os.OpenFile("./torrenty.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Println("failed to open log file:", err)
+		os.Exit(1)
+	}
+	defer logFile.Close()
+
+	logger := slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
+
 	if err := validateFlags(config); err != nil {
-		fmt.Println(err)
+		slog.Error("Validation failed", slog.Any("error", err))
 		os.Exit(1)
 	}
 
 	if err := processDownload(config); err != nil {
-		fmt.Println(err)
+		slog.Error("Download failed", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
@@ -88,7 +101,36 @@ func processDownload(config *DownloadFlags) error {
 		return fmt.Errorf("could not allocate %d bytes for file %s: %w", t.Size(), out.Name(), err)
 	}
 
-	return t.Download(out)
+	startTime := time.Now()
+	slog.Info("Starting download",
+		slog.String("file", t.Name()),
+		slog.String("destination", dest),
+		slog.Time("start_time", startTime),
+		slog.Group("params",
+			slog.String("torrent_file", config.TorrentFile),
+			slog.String("magnet_link", config.MagnetLink),
+			slog.String("destination", config.Destination),
+		),
+	)
+
+	if err = t.Download(out); err != nil {
+		return err
+	}
+	endTime := time.Now()
+	duration := endTime.Sub(startTime)
+
+	slog.Info("Download completed",
+		slog.String("file", t.Name()),
+		slog.Duration("duration", duration),
+		slog.Time("end_time", endTime),
+		slog.Group("params",
+			slog.String("torrent_file", config.TorrentFile),
+			slog.String("magnet_link", config.MagnetLink),
+			slog.String("destination", config.Destination),
+		),
+	)
+
+	return nil
 }
 
 func createTorrent(config *DownloadFlags) (*torrent.Torrent, error) {
@@ -113,6 +155,8 @@ func torrentFromFile(config *DownloadFlags) (*torrent.Torrent, error) {
 		return nil, fmt.Errorf("failed to read torrent file %s: %s", config.TorrentFile, err.Error())
 	}
 
+	slog.Info("Torrent file parsed", slog.String("file", config.TorrentFile))
+
 	return t, nil
 }
 
@@ -121,6 +165,8 @@ func torrentFromMagnet(config *DownloadFlags) (*torrent.Torrent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create torrent from magnet %s: %s", config.MagnetLink, err.Error())
 	}
+
+	slog.Info("Torrent created from magnet link", slog.String("magnet", config.MagnetLink))
 
 	return t, nil
 }

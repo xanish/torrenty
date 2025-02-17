@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"fmt"
+	"log/slog"
 	"math"
 
 	"github.com/xanish/torrenty/internal/peer"
@@ -66,8 +67,12 @@ func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) erro
 
 			err := pw.peer.Send(protocol.NewRequestMessage(piece.index, i*downloadBlockSize, adjustedBlockSize))
 			if err != nil {
-				// Something went wrong while requesting for current piece, just
-				// add it to backlog and try later
+				slog.Error(
+					"Failed to send request to peer",
+					slog.String("peer", pw.peer.String()),
+					slog.Any("error", err),
+				)
+
 				isChanClosed := requeueWork(piece, jobs)
 				if isChanClosed {
 					return nil
@@ -78,6 +83,12 @@ func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) erro
 
 			msg, err := pw.peer.Receive()
 			if err != nil {
+				slog.Error(
+					"Failed to receive message from peer",
+					slog.String("peer", pw.peer.String()),
+					slog.Any("error", err),
+				)
+
 				isChanClosed := requeueWork(piece, jobs)
 				if isChanClosed {
 					return nil
@@ -89,6 +100,12 @@ func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) erro
 			}
 
 			if msg.Type != protocol.MsgTypePiece {
+				slog.Warn(
+					"Received unexpected message type from peer",
+					slog.String("peer", pw.peer.String()),
+					slog.Int("type", int(msg.Type)),
+				)
+
 				isChanClosed := requeueWork(piece, jobs)
 				if isChanClosed {
 					return nil
@@ -105,8 +122,12 @@ func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) erro
 		// check piece integrity
 		hash := sha1.Sum(piece.result)
 		if !bytes.Equal(hash[:], piece.hash[:]) {
-			// Hash for the piece did not match so we requeue it and download
-			// it later
+			slog.Warn(
+				"Piece hash mismatch",
+				slog.Int("piece_index", int(piece.index)),
+				slog.String("peer", pw.peer.String()),
+			)
+
 			isChanClosed := requeueWork(piece, jobs)
 			if isChanClosed {
 				return nil

@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -70,6 +71,8 @@ func (t *Tracker) Refresh(event string) ([]peer.Peer, time.Duration, error) {
 	c := &http.Client{Timeout: 10 * time.Second}
 	trackerURL := t.URL(event)
 
+	slog.Debug("Generated tracker URL", slog.String("tracker_url", trackerURL))
+
 	resp, err := c.Get(trackerURL)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch tracker metadata: %w", err)
@@ -87,7 +90,10 @@ func (t *Tracker) Refresh(event string) ([]peer.Peer, time.Duration, error) {
 	}
 
 	if trackerResp.WarningMessage != "" {
-		// todo: log msg
+		slog.Warn(
+			"Tracker returned a warning",
+			slog.String("message", trackerResp.WarningMessage),
+		)
 	}
 
 	peers, err := peer.New(trackerResp.Peers)
@@ -99,6 +105,12 @@ func (t *Tracker) Refresh(event string) ([]peer.Peer, time.Duration, error) {
 	if interval == 0 && trackerResp.MinInterval > 0 {
 		interval = time.Duration(trackerResp.MinInterval) * time.Second
 	}
+
+	slog.Info("Tracker response received",
+		slog.String("tracker_url", trackerURL),
+		slog.Int64("interval", int64(interval.Seconds())),
+		slog.Int("num_peers", len(peers)),
+	)
 
 	return peers, interval, nil
 }
