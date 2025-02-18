@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"time"
 
@@ -24,7 +25,7 @@ type Torrent struct {
 	refreshInterval time.Duration
 }
 
-func FromFile(r io.Reader) (*Torrent, error) {
+func FromFile(ctx context.Context, r io.Reader) (*Torrent, error) {
 	meta, err := metadata.FromFile(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse metadata: %w", err)
@@ -37,10 +38,10 @@ func FromFile(r io.Reader) (*Torrent, error) {
 
 	track := tracker.New(clientID, port, *meta)
 
-	return &Torrent{metadata: meta, tracker: track, clientID: clientID}, nil
+	return &Torrent{metadata: meta, tracker: track, clientID: clientID, ctx: ctx}, nil
 }
 
-func FromMagnet(url string) (*Torrent, error) {
+func FromMagnet(ctx context.Context, url string) (*Torrent, error) {
 	return nil, nil
 }
 
@@ -88,7 +89,10 @@ func (t *Torrent) Download(destination io.WriterAt) error {
 	}
 
 	pool := workerpool.New(workers, jobs, done)
-	pool.DoWork()
+
+	go func() {
+		pool.DoWork(t.ctx)
+	}()
 
 	donePieces := 0
 	for donePieces < len(pieces) {
@@ -104,7 +108,44 @@ func (t *Torrent) Download(destination io.WriterAt) error {
 		t.tracker.UpdateProgress(uint64(len(res.result)), 0)
 	}
 
-	// todo: spawn some goroutine to regularly refresh tracker
+	go func() {
+		// todo: now that we're refreshing tracker maybe i should start connecting to new peers if we get any
+		t.refreshTrackerLoop()
+	}()
 
 	return nil
+}
+
+func (t *Torrent) refreshTrackerLoop() {
+	ticker := time.NewTicker(t.refreshInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			peers, interval, err := t.tracker.Refresh("started")
+			if err != nil {
+				slog.Error("Failed to refresh tracker", slog.Any("error", err))
+				continue
+			}
+
+			t.peers = peers
+			t.refreshInterval = interval
+			slog.Info(
+				"Tracker refreshed",
+				slog.Int("num_peers", len(t.peers)),
+				slog.Duration("interval", t.refreshInterval),
+			)
+
+		case <-t.ctx.Done():
+			_, _, err := t.tracker.Refresh("stopped")
+			if err != nil {
+				slog.Error("Failed to send stop event to tracker", slog.Any("error", err))
+				continue
+			}
+
+			slog.Info("Tracker refresh loop stopped")
+			return
+		}
+	}
 }

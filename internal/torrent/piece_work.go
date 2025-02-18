@@ -2,6 +2,7 @@ package torrent
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"fmt"
 	"log/slog"
@@ -34,7 +35,7 @@ func NewPieceWorker(id int, clientID, infoHash [20]byte, peer peer.Peer) PieceWo
 	}
 }
 
-func (pw PieceWorker) DoWork(jobs chan PieceWork, results chan<- PieceWork) error {
+func (pw PieceWorker) DoWork(ctx context.Context, jobs chan PieceWork, results chan<- PieceWork) error {
 	const downloadBlockSize uint32 = 16 * 1024
 
 	err := pw.peer.Connect(pw.clientID, pw.infoHash)

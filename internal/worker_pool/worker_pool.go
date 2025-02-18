@@ -1,11 +1,12 @@
 package workerpool
 
 import (
+	"context"
 	"sync"
 )
 
 type Worker[T, U any] interface {
-	DoWork(jobs chan T, results chan<- U) error
+	DoWork(ctx context.Context, jobs chan T, results chan<- U) error
 }
 
 type WorkerPool[T, U any] struct {
@@ -23,13 +24,13 @@ func New[T, U any](workers []Worker[T, U], jobs chan T, results chan<- U) Worker
 	}
 }
 
-func (wp WorkerPool[T, U]) DoWork() {
+func (wp WorkerPool[T, U]) DoWork(ctx context.Context) {
 	wp.wg.Add(len(wp.workers))
 
 	for _, worker := range wp.workers {
 		go func(w Worker[T, U]) {
 			defer wp.wg.Done()
-			err := w.DoWork(wp.jobs, wp.results)
+			err := w.DoWork(ctx, wp.jobs, wp.results)
 			if err != nil {
 				return
 			}

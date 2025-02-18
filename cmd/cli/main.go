@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/xanish/torrenty/internal/torrent"
@@ -31,7 +34,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := processDownload(config); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigchan
+		slog.Info("Shutting down gracefully...")
+		cancel()
+	}()
+
+	if err := processDownload(ctx, config); err != nil {
 		slog.Error("Download failed", slog.Any("error", err))
 		os.Exit(1)
 	}
@@ -80,8 +94,8 @@ func validateFlags(config *DownloadFlags) error {
 	return nil
 }
 
-func processDownload(config *DownloadFlags) error {
-	t, err := createTorrent(config)
+func processDownload(ctx context.Context, config *DownloadFlags) error {
+	t, err := createTorrent(ctx, config)
 	if err != nil {
 		return err
 	}
@@ -133,24 +147,24 @@ func processDownload(config *DownloadFlags) error {
 	return nil
 }
 
-func createTorrent(config *DownloadFlags) (*torrent.Torrent, error) {
+func createTorrent(ctx context.Context, config *DownloadFlags) (*torrent.Torrent, error) {
 	if config.TorrentFile != "" {
-		return torrentFromFile(config)
+		return torrentFromFile(ctx, config)
 	} else if config.MagnetLink != "" {
-		return torrentFromMagnet(config)
+		return torrentFromMagnet(ctx, config)
 	}
 
 	return nil, errors.New("no torrent file or magnet link provided")
 }
 
-func torrentFromFile(config *DownloadFlags) (*torrent.Torrent, error) {
+func torrentFromFile(ctx context.Context, config *DownloadFlags) (*torrent.Torrent, error) {
 	file, err := os.Open(config.TorrentFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read torrent file %s: %s", config.TorrentFile, err.Error())
 	}
 	defer file.Close()
 
-	t, err := torrent.FromFile(file)
+	t, err := torrent.FromFile(ctx, file)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read torrent file %s: %s", config.TorrentFile, err.Error())
 	}
@@ -160,8 +174,8 @@ func torrentFromFile(config *DownloadFlags) (*torrent.Torrent, error) {
 	return t, nil
 }
 
-func torrentFromMagnet(config *DownloadFlags) (*torrent.Torrent, error) {
-	t, err := torrent.FromMagnet(config.MagnetLink)
+func torrentFromMagnet(ctx context.Context, config *DownloadFlags) (*torrent.Torrent, error) {
+	t, err := torrent.FromMagnet(ctx, config.MagnetLink)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create torrent from magnet %s: %s", config.MagnetLink, err.Error())
 	}
