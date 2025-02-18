@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jackpal/bencode-go"
@@ -18,6 +19,7 @@ type Tracker struct {
 	port     uint16
 	torrent  metadata.Metadata
 	progress Progress
+	mu       sync.RWMutex
 }
 
 type Progress struct {
@@ -113,4 +115,20 @@ func (t *Tracker) Refresh(event string) ([]peer.Peer, time.Duration, error) {
 	)
 
 	return peers, interval, nil
+}
+
+func (t *Tracker) UpdateProgress(downloaded, uploaded uint64) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.progress.downloaded = downloaded
+	t.progress.uploaded = uploaded
+	t.progress.remaining = t.torrent.Info.Length - downloaded
+
+	slog.Debug(
+		"Tracker progress updated",
+		slog.Uint64("downloaded", downloaded),
+		slog.Uint64("uploaded", uploaded),
+		slog.Uint64("remaining", t.progress.remaining),
+	)
 }

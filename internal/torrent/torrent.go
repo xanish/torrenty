@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -15,6 +16,7 @@ import (
 const port uint16 = 6881
 
 type Torrent struct {
+	ctx             context.Context
 	clientID        [20]byte
 	metadata        *metadata.Metadata
 	tracker         *tracker.Tracker
@@ -99,6 +101,7 @@ func (t *Torrent) Download(destination io.WriterAt) error {
 		}
 
 		donePieces++
+		t.tracker.UpdateProgress(uint64(len(res.result)), 0)
 	}
 
 	// todo: spawn some goroutine to regularly refresh tracker
