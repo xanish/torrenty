@@ -1,6 +1,7 @@
 package workerpool
 
 import (
+	"context"
 	"strconv"
 	"sync"
 	"testing"
@@ -13,8 +14,8 @@ type mockWorker struct {
 	mock.Mock
 }
 
-func (m *mockWorker) DoWork(jobs chan int, results chan<- string) error {
-	m.Called(jobs, results)
+func (m *mockWorker) DoWork(ctx context.Context, jobs chan int, results chan<- string) error {
+	m.Called(ctx, jobs, results)
 	for job := range jobs {
 		results <- "processed " + strconv.Itoa(job)
 	}
@@ -39,10 +40,12 @@ func TestWorkerPool(t *testing.T) {
 		jobs := make(chan int)
 		results := make(chan string, 2)
 		worker := new(mockWorker)
-		worker.On("DoWork", mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
+		worker.On("DoWork", mock.AnythingOfType("backgroundCtx"), mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
 
 		wp := New([]Worker[int, string]{worker}, jobs, results)
-		go wp.DoWork()
+		go func() {
+			wp.DoWork(context.Background())
+		}()
 
 		jobs <- 1
 		jobs <- 2
@@ -59,15 +62,15 @@ func TestWorkerPool(t *testing.T) {
 
 		worker1 := new(mockWorker)
 		worker2 := new(mockWorker)
-		worker1.On("DoWork", mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
-		worker2.On("DoWork", mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
+		worker1.On("DoWork", mock.AnythingOfType("backgroundCtx"), mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
+		worker2.On("DoWork", mock.AnythingOfType("backgroundCtx"), mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
 
 		wp := New([]Worker[int, string]{worker1, worker2}, jobs, results)
 
 		var wg sync.WaitGroup
 		wg.Add(1)
 		go func() {
-			wp.DoWork()
+			wp.DoWork(context.Background())
 			wg.Done()
 		}()
 
@@ -89,7 +92,7 @@ func TestWorkerPool(t *testing.T) {
 		jobs := make(chan int)
 		results := make(chan string)
 		worker := new(mockWorker)
-		worker.On("DoWork", mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
+		worker.On("DoWork", mock.AnythingOfType("backgroundCtx"), mock.AnythingOfType("chan int"), mock.AnythingOfType("chan<- string")).Return().Once()
 
 		wp := New([]Worker[int, string]{worker}, jobs, results)
 
@@ -97,7 +100,7 @@ func TestWorkerPool(t *testing.T) {
 		wg.Add(1)
 
 		go func() {
-			wp.DoWork()
+			wp.DoWork(context.Background())
 			wg.Done()
 		}()
 

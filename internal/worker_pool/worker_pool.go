@@ -21,6 +21,7 @@ func New[T, U any](workers []Worker[T, U], jobs chan T, results chan<- U) Worker
 		workers: workers,
 		jobs:    jobs,
 		results: results,
+		wg:      &sync.WaitGroup{},
 	}
 }
 
